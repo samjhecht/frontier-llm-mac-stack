@@ -42,15 +42,15 @@ Quick steps:
 
 1. **On your MacBook Pro:**
    ```bash
-   git clone https://github.com/yourusername/frontier-llm-stack.git
-   cd frontier-llm-stack
+   git clone https://github.com/yourusername/frontier-llm-mac-stack.git
+   cd frontier-llm-mac-stack
    ```
 
 2. **On Mac Studio (via SSH):**
    ```bash
    ssh username@mac-studio.local
-   git clone https://github.com/yourusername/frontier-llm-stack.git
-   cd frontier-llm-stack
+   git clone https://github.com/yourusername/frontier-llm-mac-stack.git
+   cd frontier-llm-mac-stack
    ```
 
 ### Step 3: Automated Setup with swissarmyhammer
@@ -59,7 +59,7 @@ Once SSH access is configured, use swissarmyhammer to complete the setup:
 
 ```bash
 # On your MacBook Pro
-cd frontier-llm-stack
+cd frontier-llm-mac-stack
 swissarmyhammer --debug flow run implement
 ```
 
@@ -97,7 +97,7 @@ If you prefer manual setup instead of using swissarmyhammer:
 
 ```bash
 # On Mac Studio
-cd frontier-llm-stack
+cd frontier-llm-mac-stack
 ./scripts/setup/docker-setup.sh
 cp .env.example .env
 # Edit .env with your settings
@@ -109,7 +109,7 @@ cp .env.example .env
 
 ```bash
 # On Mac Studio
-cd frontier-llm-stack
+cd frontier-llm-mac-stack
 ./scripts/setup/01-install-dependencies.sh
 ./scripts/setup/02-install-ollama.sh
 ./scripts/setup/03-configure-ollama-service.sh
@@ -266,7 +266,7 @@ curl http://localhost:11434/api/version
 ## Project Structure
 
 ```
-frontier-llm-stack/
+frontier-llm-mac-stack/
 ├── docker-compose.yml       # Container orchestration
 ├── .env.example            # Environment configuration template
 ├── scripts/

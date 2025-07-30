@@ -185,7 +185,7 @@ backup_docker_volumes() {
     local docker_backup_dir="${BACKUP_DIR}/docker"
     
     # Get list of volumes
-    volumes=$(docker volume ls --format '{{.Name}}' | grep -E '^frontier-llm-stack_' || true)
+    volumes=$(docker volume ls --format '{{.Name}}' | grep -E '^frontier-llm-mac-stack_' || true)
     
     if [[ -z "$volumes" ]]; then
         print_warning "No Frontier LLM Stack Docker volumes found"

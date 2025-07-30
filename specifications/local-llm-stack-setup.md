@@ -72,11 +72,11 @@ EOF
 ### 2.1 Deploy LLM Stack on Mac Studio
 ```bash
 # Copy repository to Mac Studio if not already there
-scp -r ./frontier-llm-stack username@mac-studio.local:~/
+scp -r ./frontier-llm-mac-stack username@mac-studio.local:~/
 
 # Execute Docker setup on Mac Studio
 ssh username@mac-studio.local << 'EOF'
-cd ~/frontier-llm-stack
+cd ~/frontier-llm-mac-stack
 
 # Run Docker setup script
 ./scripts/setup/docker-setup.sh
@@ -118,7 +118,7 @@ curl -s "http://${MAC_STUDIO_IP}:3000/api/health" | jq '.'
 ```bash
 # Pull initial model on Mac Studio
 ssh username@mac-studio.local << 'EOF'
-cd ~/frontier-llm-stack
+cd ~/frontier-llm-mac-stack
 
 # Pull Qwen2.5-Coder for initial setup
 ./pull-model.sh qwen2.5-coder:32b-instruct-q8_0
@@ -149,7 +149,7 @@ curl -X POST "http://${MAC_STUDIO_IP}:11434/api/generate" \
 
 # When ready to upgrade:
 ssh username@mac-studio.local << 'EOF'
-cd ~/frontier-llm-stack
+cd ~/frontier-llm-mac-stack
 
 # Check available resources
 df -g ~/ollama-models
@@ -167,7 +167,7 @@ EOF
 ### 3.1 Install Aider on MacBook Pro
 ```bash
 # On MacBook Pro
-cd ~/frontier-llm-stack
+cd ~/frontier-llm-mac-stack
 ./scripts/setup/05-install-aider.sh
 
 # Update Aider config with Mac Studio IP
@@ -179,7 +179,7 @@ sed -i '' "s|api-base:.*|api-base: http://${MAC_STUDIO_IP}:11434|" ~/.aider.conf
 ```bash
 # If you want Aider directly on Mac Studio too
 ssh username@mac-studio.local << 'EOF'
-cd ~/frontier-llm-stack
+cd ~/frontier-llm-mac-stack
 ./scripts/setup/05-install-aider.sh
 
 # Configure for local access
@@ -226,7 +226,7 @@ curl -X POST "http://admin:frontier-llm@${MAC_STUDIO_IP}:3000/api/dashboards/db"
 ### 4.2 Set Up Alerts (Optional)
 ```bash
 ssh username@mac-studio.local << 'EOF'
-cd ~/frontier-llm-stack
+cd ~/frontier-llm-mac-stack
 
 # Add alert rules to Prometheus config
 cat >> config/prometheus/alert.rules.yml << 'RULES'
@@ -255,7 +255,7 @@ EOF
 ### 5.1 Run Automated Tests
 ```bash
 # From MacBook Pro
-cd ~/frontier-llm-stack
+cd ~/frontier-llm-mac-stack
 ./scripts/testing/test-integration.sh
 
 # Run benchmarks
@@ -303,13 +303,13 @@ curl -s "http://${MAC_STUDIO_IP}:9090/api/v1/query?query=rate(ollama_request_dur
 ```bash
 # Set up automated backups on Mac Studio
 ssh username@mac-studio.local << 'EOF'
-cd ~/frontier-llm-stack
+cd ~/frontier-llm-mac-stack
 
 # Configure backup script
 sed -i '' "s|BACKUP_ROOT=.*|BACKUP_ROOT=/Volumes/Backup/frontier-llm|" scripts/backup/backup-llm-stack.sh
 
 # Create cron job for daily backups
-(crontab -l 2>/dev/null; echo "0 2 * * * cd ~/frontier-llm-stack && ./scripts/backup/backup-llm-stack.sh") | crontab -
+(crontab -l 2>/dev/null; echo "0 2 * * * cd ~/frontier-llm-mac-stack && ./scripts/backup/backup-llm-stack.sh") | crontab -
 
 # Test backup
 ./scripts/backup/backup-llm-stack.sh --dry-run
@@ -320,7 +320,7 @@ EOF
 ```bash
 # Update Docker network security
 ssh username@mac-studio.local << 'EOF'
-cd ~/frontier-llm-stack
+cd ~/frontier-llm-mac-stack
 
 # Update Nginx to restrict access to local network
 cat > config/nginx/security.conf << 'NGINX'
