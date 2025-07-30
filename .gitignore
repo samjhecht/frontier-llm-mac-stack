@@ -1,0 +1,69 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Ollama models (large files)
+/data/ollama-models/
+/ollama-models/
+
+# Docker volumes
+/data/
+
+# Logs
+*.log
+/logs/
+
+# Backup files
+/backup/
+*.backup
+*.bak
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Monitoring data
+/prometheus-data/
+/grafana-data/
+
+# SSL certificates (security)
+*.pem
+*.key
+*.crt
+*.csr
+
+# Test results
+/benchmark-results/
+/test-results/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor backup files
+*~
+*.orig
+
+# Claude artifacts
+.claude/
