@@ -1,8 +1,11 @@
-# Self-Hosted LLM with Coding Agent: Complete Implementation Plan
+# Self-Hosted LLM with Coding Agent: Automated Implementation Plan
+
+> **Note for Automation**: This document is designed to be executed by swissarmyhammer. 
+> Replace `username` with the actual Mac Studio username and `mac-studio.local` with the actual hostname throughout execution.
 
 ## Executive Summary
 
-This document provides a comprehensive implementation plan for setting up a self-hosted LLM (Qwen3-235B) on a Mac Studio with an alternative coding agent to replace Claude Code. The solution includes remote access from a MacBook Pro, observability setup, and detailed step-by-step instructions.
+This document serves as the implementation guide for swissarmyhammer to automatically set up a self-hosted LLM infrastructure on Mac Studio. The setup begins with Qwen2.5-Coder-32B for rapid deployment and testing, with a clear upgrade path to Qwen3-235B for production use. The solution uses Docker for consistency and includes full observability.
 
 ## Architecture Overview
 
@@ -26,320 +29,340 @@ This document provides a comprehensive implementation plan for setting up a self
 
 ## Phase 1: Environment Preparation
 
-### 1.1 System Requirements Verification
+### 1.1 Pre-requisites Check
+**Note:** SSH access must already be configured before running this automation.
+
 ```bash
-# On Mac Studio - verify system specs
+# Verify SSH connection from MacBook Pro to Mac Studio
+ssh username@mac-studio.local "echo 'SSH connection successful'"
+
+# On Mac Studio via SSH - verify system specs
+ssh username@mac-studio.local << 'EOF'
 system_profiler SPHardwareDataType | grep -E "Model|Chip|Memory|Storage"
 sw_vers -productVersion
-
-# Check available storage (need ~500GB free)
-df -h /
-```
-
-### 1.2 Install Core Dependencies
-```bash
-# Install Homebrew if not present
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# Install required packages
-brew install wget curl git python@3.12 node@20
-brew install --cask docker
-
-# Install development tools
-xcode-select --install
-```
-
-### 1.3 Configure SSH Access
-```bash
-# On Mac Studio - enable SSH
-sudo systemsetup -setremotelogin on
-
-# Generate SSH keys if needed
-ssh-keygen -t ed25519 -C "llm-server@macstudio"
-
-# On MacBook Pro - copy SSH key
-ssh-copy-id -i ~/.ssh/id_ed25519.pub username@mac-studio.local
-```
-
-## Phase 2: LLM Infrastructure Setup
-
-### 2.1 Install Ollama
-```bash
-# On Mac Studio
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Verify installation
-ollama --version
-
-# Configure Ollama for network access
-echo 'export OLLAMA_HOST="0.0.0.0:11434"' >> ~/.zshrc
-echo 'export OLLAMA_MODELS="/Users/$USER/ollama-models"' >> ~/.zshrc
-source ~/.zshrc
-
-# Create models directory with sufficient space
-mkdir -p ~/ollama-models
-```
-
-### 2.2 Configure Ollama Service
-```bash
-# Create launchd service for auto-start
-cat << 'EOF' > ~/Library/LaunchAgents/com.ollama.server.plist
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.ollama.server</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/usr/local/bin/ollama</string>
-        <string>serve</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>OLLAMA_HOST</key>
-        <string>0.0.0.0:11434</string>
-        <key>OLLAMA_MODELS</key>
-        <string>/Users/USERNAME/ollama-models</string>
-    </dict>
-</dict>
-</plist>
+df -g / | awk 'NR==2 {print "Available storage: " $4 "GB"}'
 EOF
-
-# Replace USERNAME with actual username
-sed -i '' "s/USERNAME/$USER/g" ~/Library/LaunchAgents/com.ollama.server.plist
-
-# Load the service
-launchctl load ~/Library/LaunchAgents/com.ollama.server.plist
 ```
 
-### 2.3 Model Installation and Configuration
-
-**Note**: Qwen3-235B requires extensive resources. Alternative approach using Qwen2.5-Coder-32B recommended for initial setup.
-
+### 1.2 Install Docker and Dependencies
 ```bash
-# Option A: Qwen2.5-Coder-32B (Recommended for testing)
-ollama pull qwen2.5-coder:32b-instruct-q8_0
-
-# Create model switching script
-cat << 'EOF' > ~/bin/switch-model.sh
-#!/bin/bash
-MODEL=$1
-if [ -z "$MODEL" ]; then
-    echo "Usage: switch-model.sh <model-name>"
-    echo "Available models:"
-    ollama list
+# Execute on Mac Studio via SSH
+ssh username@mac-studio.local << 'EOF'
+# Check if Docker is installed
+if ! command -v docker &> /dev/null; then
+    echo "Installing Docker Desktop..."
+    brew install --cask docker
+    echo "Please start Docker Desktop manually on Mac Studio"
     exit 1
 fi
-echo "export OLLAMA_MODEL=$MODEL" > ~/.ollama-model
-source ~/.ollama-model
-echo "Switched to model: $MODEL"
-EOF
 
-chmod +x ~/bin/switch-model.sh
-```
+# Verify Docker is running
+if ! docker info &> /dev/null; then
+    echo "Docker is installed but not running. Please start Docker Desktop."
+    exit 1
+fi
 
-## Phase 3: Coding Agent Installation
-
-### 3.1 Install Aider (Recommended)
-```bash
-# On both Mac Studio and MacBook Pro
-pip install aider-chat
-
-# Configure Aider for Ollama
-cat << 'EOF' > ~/.aider.conf.yml
-model: ollama/qwen2.5-coder:32b-instruct-q8_0
-api-base: http://mac-studio.local:11434
-edit-format: diff
-auto-commits: false
-pretty: true
-stream: true
+# Install other dependencies
+brew install jq git
 EOF
 ```
 
-### 3.2 Test Aider Connection
+## Phase 2: Docker Infrastructure Setup
+
+### 2.1 Deploy LLM Stack on Mac Studio
 ```bash
-# From MacBook Pro
-export OLLAMA_API_BASE="http://mac-studio.local:11434"
-aider --model ollama/qwen2.5-coder:32b-instruct-q8_0 --no-auto-commits
-```
+# Copy repository to Mac Studio if not already there
+scp -r ./frontier-llm-stack username@mac-studio.local:~/
 
-## Phase 4: Observability Setup
+# Execute Docker setup on Mac Studio
+ssh username@mac-studio.local << 'EOF'
+cd ~/frontier-llm-stack
 
-### 4.1 Install Monitoring Stack
-```bash
-# On Mac Studio
-brew install prometheus grafana
+# Run Docker setup script
+./scripts/setup/docker-setup.sh
 
-# Configure Prometheus
-cat << 'EOF' > /usr/local/etc/prometheus.yml
-global:
-  scrape_interval: 15s
+# Copy and configure environment
+cp .env.example .env
 
-scrape_configs:
-  - job_name: 'ollama'
-    static_configs:
-      - targets: ['localhost:11434']
-    metrics_path: '/api/metrics'
-  
-  - job_name: 'node'
-    static_configs:
-      - targets: ['localhost:9100']
-EOF
+# Update .env with Mac Studio specifics
+sed -i '' "s|OLLAMA_MODELS_PATH=.*|OLLAMA_MODELS_PATH=$HOME/ollama-models|" .env
+sed -i '' "s|OLLAMA_MEMORY_LIMIT=.*|OLLAMA_MEMORY_LIMIT=128G|" .env
+sed -i '' "s|OLLAMA_MEMORY_RESERVATION=.*|OLLAMA_MEMORY_RESERVATION=64G|" .env
 
-# Install node exporter for system metrics
-brew install node_exporter
-```
+# Start all services
+./start.sh
 
-### 4.2 Create Monitoring Dashboard
-```bash
-# Start services
-brew services start prometheus
-brew services start grafana
-brew services start node_exporter
+# Wait for services to be ready
+sleep 30
 
-# Create Ollama monitoring script
-cat << 'EOF' > ~/bin/monitor-ollama.sh
-#!/bin/bash
-while true; do
-    echo "=== Ollama Status ==="
-    curl -s http://localhost:11434/api/ps | jq '.'
-    echo ""
-    echo "=== System Resources ==="
-    top -l 1 -n 0 | grep -E "CPU|PhysMem|GPU"
-    echo ""
-    sleep 5
-done
-EOF
-
-chmod +x ~/bin/monitor-ollama.sh
-```
-
-### 4.3 Configure Grafana Dashboard
-```bash
-# Access Grafana at http://mac-studio.local:3000
-# Default credentials: admin/admin
-
-# Import dashboard configuration
-cat << 'EOF' > ~/ollama-dashboard.json
-{
-  "dashboard": {
-    "title": "Ollama LLM Monitoring",
-    "panels": [
-      {
-        "title": "Model Response Time",
-        "targets": [{"expr": "rate(ollama_request_duration_seconds[5m])"}]
-      },
-      {
-        "title": "GPU Usage",
-        "targets": [{"expr": "node_gpu_utilization"}]
-      },
-      {
-        "title": "Memory Usage",
-        "targets": [{"expr": "node_memory_active_bytes"}]
-      }
-    ]
-  }
-}
+# Verify services are running
+docker compose ps
 EOF
 ```
 
-## Phase 5: Integration and Testing
-
-### 5.1 Create Test Environment
+### 2.2 Verify Ollama Service
 ```bash
-# On MacBook Pro
-mkdir ~/llm-test-project
-cd ~/llm-test-project
-git init
+# Test from MacBook Pro
+MAC_STUDIO_IP=$(ssh username@mac-studio.local "ipconfig getifaddr en0")
+echo "Mac Studio IP: $MAC_STUDIO_IP"
 
-# Create test file
-cat << 'EOF' > test.py
-def fibonacci(n):
-    """Calculate fibonacci number"""
-    # TODO: Implement this function
-    pass
+# Test Ollama API
+curl -s "http://${MAC_STUDIO_IP}:11434/api/version" | jq '.'
 
-if __name__ == "__main__":
-    print(fibonacci(10))
+# Test Grafana
+curl -s "http://${MAC_STUDIO_IP}:3000/api/health" | jq '.'
+```
+
+### 2.3 Initial Model Installation
+
+```bash
+# Pull initial model on Mac Studio
+ssh username@mac-studio.local << 'EOF'
+cd ~/frontier-llm-stack
+
+# Pull Qwen2.5-Coder for initial setup
+./pull-model.sh qwen2.5-coder:32b-instruct-q8_0
+
+# Verify model is loaded
+docker compose exec ollama ollama list
 EOF
-```
 
-### 5.2 Test Aider Integration
-```bash
-# Start Aider session
-aider test.py
-
-# In Aider prompt, test:
-# "Implement the fibonacci function using dynamic programming"
-```
-
-### 5.3 Performance Benchmarking
-```bash
-# Create benchmark script
-cat << 'EOF' > ~/bin/benchmark-llm.sh
-#!/bin/bash
-echo "Testing LLM response time..."
-time curl -X POST http://mac-studio.local:11434/api/generate \
+# Test model from MacBook Pro
+curl -X POST "http://${MAC_STUDIO_IP}:11434/api/generate" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "qwen2.5-coder:32b-instruct-q8_0",
-    "prompt": "Write a Python function to sort a list",
+    "prompt": "Hello, are you working?",
     "stream": false
-  }'
-EOF
-
-chmod +x ~/bin/benchmark-llm.sh
+  }' | jq -r '.response'
 ```
 
-## Phase 6: Production Configuration
+### 2.4 Qwen3-235B Upgrade Path (Post-Setup)
 
-### 6.1 Security Hardening
+**Important**: Only attempt after confirming the initial setup works perfectly.
+
 ```bash
-# Configure firewall
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/local/bin/ollama
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --block all
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --allow /usr/local/bin/ollama
+# Resource requirements for Qwen3-235B:
+# - Storage: ~470GB for Q8, ~235GB for Q4_K_M
+# - RAM: 192GB recommended
+# - Time: Several hours to download
 
-# Restrict Ollama to local network only
-cat << 'EOF' > ~/ollama-nginx.conf
-server {
-    listen 11434;
-    server_name mac-studio.local;
-    
-    location / {
-        if ($remote_addr !~ ^192\.168\.) {
-            return 403;
-        }
-        proxy_pass http://localhost:11434;
-    }
+# When ready to upgrade:
+ssh username@mac-studio.local << 'EOF'
+cd ~/frontier-llm-stack
+
+# Check available resources
+df -g ~/ollama-models
+sysctl hw.memsize | awk '{print "Total RAM: " $2/1024/1024/1024 "GB"}'
+
+# If Qwen3-235B is available in Ollama:
+# ./pull-model.sh qwen3:235b-instruct-q5_k_m
+
+# Otherwise, see Appendix C for manual conversion
+EOF
+```
+
+## Phase 3: Coding Agent Setup
+
+### 3.1 Install Aider on MacBook Pro
+```bash
+# On MacBook Pro
+cd ~/frontier-llm-stack
+./scripts/setup/05-install-aider.sh
+
+# Update Aider config with Mac Studio IP
+MAC_STUDIO_IP=$(ssh username@mac-studio.local "ipconfig getifaddr en0")
+sed -i '' "s|api-base:.*|api-base: http://${MAC_STUDIO_IP}:11434|" ~/.aider.conf.yml
+```
+
+### 3.2 Install Aider on Mac Studio (Optional)
+```bash
+# If you want Aider directly on Mac Studio too
+ssh username@mac-studio.local << 'EOF'
+cd ~/frontier-llm-stack
+./scripts/setup/05-install-aider.sh
+
+# Configure for local access
+sed -i '' "s|api-base:.*|api-base: http://localhost:11434|" ~/.aider.conf.yml
+EOF
+```
+
+### 3.3 Test Aider Integration
+```bash
+# Create test project on MacBook Pro
+mkdir -p ~/test-llm-project
+cd ~/test-llm-project
+git init
+
+echo 'def factorial(n):\n    """Calculate factorial"""\n    pass' > test.py
+
+# Test Aider
+export OLLAMA_API_BASE="http://${MAC_STUDIO_IP}:11434"
+aider test.py --yes --message "Implement the factorial function"
+
+# Verify implementation
+cat test.py
+```
+
+## Phase 4: Monitoring Verification
+
+The Docker setup includes Prometheus and Grafana. Verify they're working:
+
+### 4.1 Access Monitoring Dashboards
+```bash
+# From MacBook Pro
+MAC_STUDIO_IP=$(ssh username@mac-studio.local "ipconfig getifaddr en0")
+
+# Open in browser
+open "http://${MAC_STUDIO_IP}:3000"  # Grafana (admin/frontier-llm)
+open "http://${MAC_STUDIO_IP}:9090"  # Prometheus
+
+# Import dashboard via API
+curl -X POST "http://admin:frontier-llm@${MAC_STUDIO_IP}:3000/api/dashboards/db" \
+  -H "Content-Type: application/json" \
+  -d @config/grafana/dashboards/ollama-dashboard.json
+```
+
+### 4.2 Set Up Alerts (Optional)
+```bash
+ssh username@mac-studio.local << 'EOF'
+cd ~/frontier-llm-stack
+
+# Add alert rules to Prometheus config
+cat >> config/prometheus/alert.rules.yml << 'RULES'
+groups:
+  - name: ollama
+    rules:
+      - alert: OllamaDown
+        expr: up{job="ollama"} == 0
+        for: 5m
+        annotations:
+          summary: "Ollama is down"
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.9
+        for: 10m
+        annotations:
+          summary: "Memory usage above 90%"
+RULES
+
+# Restart Prometheus to load rules
+docker compose restart prometheus
+EOF
+```
+
+## Phase 5: Integration Testing
+
+### 5.1 Run Automated Tests
+```bash
+# From MacBook Pro
+cd ~/frontier-llm-stack
+./scripts/testing/test-integration.sh
+
+# Run benchmarks
+./scripts/testing/benchmark-llm.sh qwen2.5-coder:32b-instruct-q8_0
+```
+
+### 5.2 Test Remote Development Workflow
+```bash
+# Create a real test project
+mkdir -p ~/projects/test-ai-project
+cd ~/projects/test-ai-project
+git init
+
+# Create multiple files for testing
+cat > app.py << 'EOF'
+# TODO: Create a Flask web application with:
+# - User authentication
+# - Database connection
+# - REST API endpoints
+EOF
+
+cat > requirements.txt << 'EOF'
+flask
+sqlalchemy
+EOF
+
+# Use Aider to implement
+aider app.py --message "Implement a basic Flask app with user authentication using SQLAlchemy"
+```
+
+### 5.3 Performance Validation
+```bash
+# Monitor resource usage during generation
+ssh username@mac-studio.local << 'EOF'
+docker stats --no-stream
+EOF
+
+# Check model performance metrics
+curl -s "http://${MAC_STUDIO_IP}:9090/api/v1/query?query=rate(ollama_request_duration_seconds[5m])" | jq '.'
+```
+
+## Phase 6: Production Hardening
+
+### 6.1 Configure Backup Strategy
+```bash
+# Set up automated backups on Mac Studio
+ssh username@mac-studio.local << 'EOF'
+cd ~/frontier-llm-stack
+
+# Configure backup script
+sed -i '' "s|BACKUP_ROOT=.*|BACKUP_ROOT=/Volumes/Backup/frontier-llm|" scripts/backup/backup-llm-stack.sh
+
+# Create cron job for daily backups
+(crontab -l 2>/dev/null; echo "0 2 * * * cd ~/frontier-llm-stack && ./scripts/backup/backup-llm-stack.sh") | crontab -
+
+# Test backup
+./scripts/backup/backup-llm-stack.sh --dry-run
+EOF
+```
+
+### 6.2 Security Configuration
+```bash
+# Update Docker network security
+ssh username@mac-studio.local << 'EOF'
+cd ~/frontier-llm-stack
+
+# Update Nginx to restrict access to local network
+cat > config/nginx/security.conf << 'NGINX'
+# Restrict to local network only
+geo $allowed_network {
+    default 0;
+    192.168.0.0/16 1;
+    10.0.0.0/8 1;
+    172.16.0.0/12 1;
+    127.0.0.1 1;
 }
+
+map $allowed_network $denied {
+    0 "Access denied";
+    1 "";
+}
+NGINX
+
+# Restart Nginx
+docker compose restart nginx
 EOF
 ```
 
-### 6.2 Backup and Recovery
+### 6.3 Performance Tuning
 ```bash
-# Create backup script
-cat << 'EOF' > ~/bin/backup-llm.sh
+# Optimize for large models
+ssh username@mac-studio.local << 'EOF'
+# Disable system sleep
+sudo pmset -a sleep 0
+sudo pmset -a disksleep 0
+
+# Set up memory pressure monitoring
+cat > ~/monitor-memory.sh << 'SCRIPT'
 #!/bin/bash
-BACKUP_DIR="/Volumes/Backup/llm-backups/$(date +%Y%m%d)"
-mkdir -p "$BACKUP_DIR"
-
-# Backup models
-rsync -av ~/ollama-models/ "$BACKUP_DIR/models/"
-
-# Backup configurations
-tar -czf "$BACKUP_DIR/configs.tar.gz" \
-  ~/.ollama* \
-  ~/.aider* \
-  ~/Library/LaunchAgents/com.ollama.server.plist
+while true; do
+    vm_stat | grep -E "Pages free|Pages active|Pages inactive|Pages wired"
+    echo "---"
+    sleep 60
+done
+SCRIPT
+chmod +x ~/monitor-memory.sh
 EOF
-
-chmod +x ~/bin/backup-llm.sh
 ```
 
 ## Appendix A: Coding Agent Comparison
@@ -403,33 +426,103 @@ chmod +x ~/bin/backup-llm.sh
    sudo powermetrics --samplers gpu_power -i 1000 -n 10
    ```
 
-## Appendix C: Model Conversion for Qwen3-235B
+## Appendix C: Qwen3-235B Manual Installation
 
-Due to the size of Qwen3-235B, special handling is required:
+If Qwen3-235B is not available through Ollama, manual conversion is required:
 
+### C.1 Preparation
 ```bash
-# This is a placeholder - actual implementation would require:
-# 1. Downloading the original model (likely in safetensors format)
-# 2. Converting to GGUF format using llama.cpp
-# 3. Creating appropriate quantization (likely Q4_K_M or Q5_K_M)
-# 4. Creating custom Modelfile for Ollama
+ssh username@mac-studio.local << 'EOF'
+# Install conversion tools
+brew install python@3.11
+pip3 install transformers accelerate safetensors
 
-# The process would look like:
+# Clone llama.cpp for GGUF conversion
 git clone https://github.com/ggerganov/llama.cpp
 cd llama.cpp
-make
+make -j
 
-# Download model files (would require significant bandwidth)
-# Convert and quantize
+# Verify CUDA/Metal support
+./main --help | grep -i metal
+EOF
+```
+
+### C.2 Model Download and Conversion
+```bash
+# WARNING: This requires ~500GB+ free space and significant bandwidth
+ssh username@mac-studio.local << 'EOF'
+# Create workspace
+mkdir -p ~/models/qwen3-235b
+cd ~/models/qwen3-235b
+
+# Download from HuggingFace (example - adjust for actual source)
+# python3 -c "from transformers import AutoModelForCausalLM; \
+#   model = AutoModelForCausalLM.from_pretrained('Qwen/Qwen3-235B', \
+#   cache_dir='./cache', resume_download=True)"
+
+# Convert to GGUF format
+# python3 ~/llama.cpp/convert.py . \
+#   --outfile qwen3-235b-f16.gguf \
+#   --outtype f16
+
+# Quantize for efficiency (Q5_K_M recommended for quality/size balance)
+# ~/llama.cpp/quantize qwen3-235b-f16.gguf qwen3-235b-q5_k_m.gguf Q5_K_M
+
+# Create Ollama Modelfile
+cat > Modelfile << 'MODELFILE'
+FROM ./qwen3-235b-q5_k_m.gguf
+
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+PARAMETER repeat_penalty 1.1
+PARAMETER stop "<|endoftext|>"
+
+SYSTEM "You are a helpful AI coding assistant."
+MODELFILE
+
 # Import to Ollama
+# docker compose exec ollama ollama create qwen3:235b-q5_k_m -f Modelfile
+EOF
+```
+
+### C.3 Verify Installation
+```bash
+# Test the model
+curl -X POST "http://${MAC_STUDIO_IP}:11434/api/generate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "qwen3:235b-q5_k_m",
+    "prompt": "Explain quantum computing in simple terms",
+    "stream": false
+  }' | jq -r '.response'
+
+# Update Aider configuration
+sed -i '' 's/qwen2.5-coder:32b/qwen3:235b-q5_k_m/g' ~/.aider.conf.yml
 ```
 
 ## Final Notes
 
-This setup provides a robust, self-hosted LLM environment with coding assistance capabilities. The Mac Studio's M3 Ultra chip provides excellent performance for running large language models locally. Start with the smaller Qwen2.5-Coder model for testing, then scale up to larger models as needed.
+### Success Criteria
+- All Docker services running and accessible
+- Ollama responding to API calls from MacBook Pro
+- Aider successfully using remote Ollama instance
+- Monitoring dashboards showing system metrics
+- Backup strategy implemented and tested
 
-Key success factors:
-- Ensure adequate cooling for sustained workloads
-- Monitor memory usage carefully with large models
-- Use quantization appropriately to balance quality and performance
-- Regular backups of model files and configurations
+### Post-Setup Recommendations
+1. Run the system with Qwen2.5-Coder for at least a week before upgrading
+2. Monitor resource usage patterns to plan for Qwen3-235B
+3. Test backup and restore procedures
+4. Document any network-specific configurations needed
+
+### Scaling Considerations
+- Qwen3-235B will require ~5-10x more resources
+- Consider dedicated GPU for acceleration (via eGPU if needed)
+- Plan for 1TB+ NVMe storage for multiple large models
+- Implement model caching strategies for faster switching
+
+### Troubleshooting Resources
+- Logs: `docker compose logs -f [service]`
+- Metrics: Grafana dashboards at port 3000
+- Community: Ollama Discord and GitHub issues
+- Benchmarks: Use included scripts to validate performance
