@@ -4,12 +4,17 @@ A complete self-hosted LLM infrastructure with coding agent capabilities, design
 
 ## Overview
 
-This project provides everything needed to run a powerful, self-hosted LLM environment with:
-- **Ollama** for LLM serving (initially Qwen2.5-Coder, upgradeable to Qwen3-235B)
-- **Aider** for AI pair programming
-- **Prometheus & Grafana** for monitoring
+This project provides everything needed to run a powerful, self-hosted LLM environment with support for multiple inference engines:
+
+### Available Stacks
+- **Ollama Stack** (Production Ready) - Mature Go-based LLM serving
+- **Mistral Stack** (Coming Soon) - High-performance Rust-based inference
+
+### Common Features
+- **Prometheus & Grafana** for comprehensive monitoring
 - **Docker Compose** for easy deployment
 - **Nginx** reverse proxy for secure access
+- **Flexible stack selection** for choosing inference engines
 
 ## Prerequisites
 
@@ -117,13 +122,49 @@ cd frontier-llm-mac-stack
 ./scripts/setup/05-install-aider.sh
 ```
 
+## Stack Selection
+
+This project supports multiple inference engine stacks. Use the `stack-select.sh` script to choose your preferred stack:
+
+```bash
+# List available stacks
+./stack-select.sh list
+
+# Select the Ollama stack (default)
+./stack-select.sh select ollama
+
+# Select the Mistral stack (coming soon)
+./stack-select.sh select mistral
+
+# Show current stack
+./stack-select.sh current
+```
+
+After selecting a stack, use the provided convenience scripts:
+```bash
+./start.sh               # Start all services
+./stop.sh                # Stop all services
+./pull-model.sh          # Pull default model
+./pull-model.sh llama2   # Pull specific model
+```
+
+Or use the docker-compose wrapper directly:
+```bash
+./docker-compose-wrapper.sh up -d     # Start services
+./docker-compose-wrapper.sh ps        # Check status
+./docker-compose-wrapper.sh logs -f   # View logs
+./docker-compose-wrapper.sh down      # Stop services
+```
+
+For detailed information about each stack, see [docs/stacks/](docs/stacks/).
+
 ## Architecture
 
 ```
 ┌─────────────────┐         ┌──────────────────┐
 │  MacBook Pro    │   LAN   │   Mac Studio     │
 │                 ├─────────┤                  │
-│ - Aider Client  │         │ - Ollama Server  │
+│ - Aider Client  │         │ - LLM Server     │
 │ - Web Browser   │         │ - Monitoring     │
 │                 │         │ - Docker Stack   │
 └─────────────────┘         └──────────────────┘

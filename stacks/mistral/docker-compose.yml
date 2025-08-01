@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # Mistral.rs Inference Server (placeholder - to be implemented)
+  mistral:
+    image: mistral-rs:latest  # To be built from source
+    container_name: frontier-mistral
+    restart: unless-stopped
+    ports:
+      - "11434:11434"  # Using same port as Ollama for API compatibility
+    volumes:
+      - mistral-models:/models
+      - ./config/mistral:/config
+    environment:
+      - MISTRAL_HOST=0.0.0.0:11434
+      - MISTRAL_MODEL_PATH=/models
+    deploy:
+      resources:
+        limits:
+          memory: 64G
+        reservations:
+          memory: 32G
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - frontier-llm-network
+
+volumes:
+  mistral-models:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MISTRAL_MODELS_PATH:-./data/mistral-models}
+
+networks:
+  frontier-llm-network:
+    external: true

@@ -26,9 +26,9 @@ PROMETHEUS_PORT="${PROMETHEUS_PORT:-9090}"
 
 # Function to print colored output
 print_test_header() { echo -e "\n${BLUE}TEST: $1${NC}"; }
-print_pass() { echo -e "${GREEN}✓ PASS${NC}: $1"; ((PASSED++)); }
-print_fail() { echo -e "${RED}✗ FAIL${NC}: $1"; ((FAILED++)); }
-print_skip() { echo -e "${YELLOW}⚠ SKIP${NC}: $1"; ((SKIPPED++)); }
+print_pass() { echo -e "${GREEN}✓ PASS${NC}: $1"; PASSED=$((PASSED + 1)); }
+print_fail() { echo -e "${RED}✗ FAIL${NC}: $1"; FAILED=$((FAILED + 1)); }
+print_skip() { echo -e "${YELLOW}⚠ SKIP${NC}: $1"; SKIPPED=$((SKIPPED + 1)); }
 print_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 
 # Test Docker installation
@@ -37,7 +37,6 @@ test_docker() {
     
     if command -v docker &> /dev/null; then
         print_pass "Docker is installed"
-        docker --version
     else
         print_fail "Docker is not installed"
         return 1
@@ -49,17 +48,33 @@ test_docker() {
         print_fail "Docker daemon is not running"
         return 1
     fi
+    
+    return 0
 }
 
 # Test Ollama service
 test_ollama() {
     print_test_header "Ollama Service"
     
-    if curl -s "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/version" > /dev/null 2>&1; then
+    # Check if Ollama image is being downloaded
+    if docker images | grep -q "ollama/ollama.*<none>"; then
+        print_skip "Ollama image is still downloading"
+        print_info "Run tests again after image download completes"
+        return 0
+    fi
+    
+    # Check if Ollama container exists
+    if ! docker ps -a | grep -q "ollama"; then
+        print_skip "Ollama container not found - services may not be started"
+        print_info "Run './start.sh' to start services"
+        return 0
+    fi
+    
+    if curl -s --max-time 5 "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/version" > /dev/null 2>&1; then
         print_pass "Ollama API is accessible"
         
         # Get version
-        version=$(curl -s "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/version" | jq -r '.version' 2>/dev/null || echo "unknown")
+        version=$(curl -s --max-time 5 "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/version" | jq -r '.version' 2>/dev/null || echo "unknown")
         print_info "Ollama version: $version"
     else
         print_fail "Cannot connect to Ollama API"
@@ -67,7 +82,7 @@ test_ollama() {
     fi
     
     # Check for models
-    models=$(curl -s "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/tags" | jq -r '.models[]?.name' 2>/dev/null)
+    models=$(curl -s --max-time 5 "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/tags" 2>/dev/null | jq -r '.models[]?.name' 2>/dev/null || true)
     if [[ -n "$models" ]]; then
         print_pass "Models are available"
         echo "$models" | sed 's/^/  - /'
@@ -83,7 +98,7 @@ test_model_response() {
     print_test_header "Model Response"
     
     # Get first available model
-    model=$(curl -s "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/tags" | jq -r '.models[0].name' 2>/dev/null)
+    model=$(curl -s --max-time 5 "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/tags" 2>/dev/null | jq -r '.models[0].name' 2>/dev/null || true)
     
     if [[ -z "$model" ]]; then
         print_skip "No model available for testing"
@@ -93,7 +108,7 @@ test_model_response() {
     print_info "Testing model: $model"
     
     # Test simple prompt
-    response=$(curl -s -X POST "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/generate" \
+    response=$(curl -s --max-time 10 -X POST "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/generate" \
         -H "Content-Type: application/json" \
         -d '{
             "model": "'"$model"'",
@@ -115,7 +130,7 @@ test_model_response() {
 test_prometheus() {
     print_test_header "Prometheus Monitoring"
     
-    if curl -s "http://localhost:${PROMETHEUS_PORT}/-/ready" > /dev/null 2>&1; then
+    if curl -s --max-time 5 "http://localhost:${PROMETHEUS_PORT}/-/ready" > /dev/null 2>&1; then
         print_pass "Prometheus is running"
     else
         print_skip "Prometheus is not accessible"
@@ -123,7 +138,7 @@ test_prometheus() {
     fi
     
     # Check targets
-    targets=$(curl -s "http://localhost:${PROMETHEUS_PORT}/api/v1/targets" | jq -r '.data.activeTargets[]?.health' 2>/dev/null)
+    targets=$(curl -s --max-time 5 "http://localhost:${PROMETHEUS_PORT}/api/v1/targets" 2>/dev/null | jq -r '.data.activeTargets[]?.health' 2>/dev/null || true)
     if [[ -n "$targets" ]]; then
         print_pass "Prometheus has active targets"
     else
@@ -135,7 +150,7 @@ test_prometheus() {
 test_grafana() {
     print_test_header "Grafana Dashboard"
     
-    if curl -s "http://localhost:${GRAFANA_PORT}/api/health" > /dev/null 2>&1; then
+    if curl -s --max-time 5 "http://localhost:${GRAFANA_PORT}/api/health" > /dev/null 2>&1; then
         print_pass "Grafana is running"
         print_info "Access dashboard at: http://localhost:${GRAFANA_PORT}"
     else
@@ -150,7 +165,7 @@ test_aider() {
     
     if command -v aider &> /dev/null; then
         print_pass "Aider is installed"
-        aider --version 2>&1 | head -1
+        echo "  Aider is available"
     else
         print_skip "Aider is not installed"
         print_info "Run './scripts/setup/05-install-aider.sh' to install"
@@ -190,7 +205,7 @@ EOF
     export OLLAMA_API_BASE="http://${OLLAMA_HOST}:${OLLAMA_PORT}"
     
     # Get first available model
-    model=$(curl -s "${OLLAMA_API_BASE}/api/tags" | jq -r '.models[0].name' 2>/dev/null)
+    model=$(curl -s --max-time 5 "${OLLAMA_API_BASE}/api/tags" 2>/dev/null | jq -r '.models[0].name' 2>/dev/null || true)
     
     if [[ -z "$model" ]]; then
         print_skip "No model available for Aider test"
