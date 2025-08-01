@@ -5,24 +5,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-# Helper functions
-print_error() {
-    echo -e "${RED}ERROR: $1${NC}" >&2
-}
-
-print_success() {
-    echo -e "${GREEN}SUCCESS: $1${NC}"
-}
-
-print_info() {
-    echo -e "${YELLOW}INFO: $1${NC}"
-}
+# Source common functions
+source "$SCRIPT_DIR/build-common.sh"
 
 # Check for required tools
 if ! command -v cargo &> /dev/null; then
@@ -30,10 +14,11 @@ if ! command -v cargo &> /dev/null; then
     exit 1
 fi
 
-if ! command -v docker &> /dev/null; then
-    print_error "Docker is not installed or not in PATH"
-    exit 1
-fi
+check_docker || exit 1
+
+# Get platform info and check Metal support
+get_platform_info
+check_metal_support || exit 1
 
 # Create temporary build directory
 BUILD_DIR="${SCRIPT_DIR}/docker/build"
@@ -45,10 +30,10 @@ cd "$BUILD_DIR"
 if [ -d "mistral.rs" ]; then
     print_info "mistral.rs directory exists, updating..."
     cd mistral.rs
-    git fetch
-    git checkout v0.6.0
+    timeout "$DEFAULT_GIT_TIMEOUT" git fetch
+    timeout "$DEFAULT_GIT_TIMEOUT" git checkout v0.6.0
 else
-    git clone --depth 1 --branch v0.6.0 https://github.com/EricLBuehler/mistral.rs.git
+    clone_repository "https://github.com/EricLBuehler/mistral.rs.git" "mistral.rs" "v0.6.0" || exit 1
     cd mistral.rs
 fi
 
@@ -64,13 +49,20 @@ cd "$SCRIPT_DIR"
 print_info "Building Docker image..."
 docker build \
     --progress=plain \
+    --build-arg USE_V5_MODE="true" \
     --tag frontier-mistral:metal-latest \
     --tag frontier-mistral:latest \
-    --file docker/Dockerfile.metal.prebuilt \
+    --file docker/Dockerfile.prebuilt \
     docker/
 
 # Clean up
 rm -f "$SCRIPT_DIR/docker/mistralrs-server"
 
+# Verify the built image
+verify_image "frontier-mistral:metal-latest" || exit 1
+
 print_success "Docker image built successfully!"
 print_info "Tagged as: frontier-mistral:metal-latest and frontier-mistral:latest"
+
+# Test the server binary
+test_server_binary "frontier-mistral:metal-latest" || exit 1
