@@ -15,7 +15,24 @@ scrape_configs:
     metrics_path: '/api/metrics'
     static_configs:
       - targets: ['frontier-ollama:11434']
+        labels:
+          engine: 'ollama'
+          engine_type: 'inference'
+
+  - job_name: 'mistral'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['frontier-mistral:11434']
+        labels:
+          engine: 'mistral'
+          engine_type: 'inference'
 
   - job_name: 'grafana'
     static_configs:
       - targets: ['frontier-grafana:3000']
+
+  - job_name: 'nvidia_gpu'
+    static_configs:
+      - targets: ['frontier-nvidia-exporter:9400']
+        labels:
+          gpu: 'nvidia'

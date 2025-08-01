@@ -66,3 +66,31 @@ networks:
 - ~200 lines of Docker Compose configuration
 - ~100 lines of Prometheus configuration
 - Dashboard template updates
+
+## Proposed Solution
+
+After analyzing the current monitoring setup, I will implement the following changes:
+
+1. **Keep existing monitoring structure** - The monitoring is already properly separated in `stacks/common/monitoring/docker-compose.yml`
+
+2. **Update Prometheus configuration for multi-engine support**:
+   - Modify `prometheus.yml` to include both Ollama and Mistral.rs scrape targets
+   - Use conditional scraping based on service availability
+   - Add labels to distinguish between different inference engines
+
+3. **Create unified Grafana dashboards**:
+   - Design dashboards that work with metrics from both engines
+   - Use Grafana variables to switch between data sources
+   - Create common panels for system metrics (CPU, memory, GPU)
+   - Add engine-specific panels that adapt based on available metrics
+
+4. **Create monitoring management scripts**:
+   - `scripts/monitoring-start.sh` - Start monitoring stack independently
+   - `scripts/monitoring-stop.sh` - Stop monitoring stack
+   - Add health check functionality
+
+5. **Ensure network compatibility**:
+   - Verify all services use the `frontier-llm-network`
+   - Ensure monitoring can connect to both Ollama and Mistral.rs
+
+The current structure is already well-organized, so minimal restructuring is needed. The focus will be on configuration updates and script creation.
