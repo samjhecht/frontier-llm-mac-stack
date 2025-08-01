@@ -31,8 +31,14 @@ print_header() {
     echo -e "${BLUE}=== $1 ===${NC}"
 }
 
+print_warning() {
+    echo -e "${YELLOW}WARNING: $1${NC}"
+}
+
 # Load environment variables
-if [ -f "${ROOT_DIR}/.env" ]; then
+if [ -f "${SCRIPT_DIR}/.env" ]; then
+    source "${SCRIPT_DIR}/.env"
+elif [ -f "${ROOT_DIR}/.env" ]; then
     source "${ROOT_DIR}/.env"
 fi
 
@@ -96,10 +102,33 @@ list_available() {
     print_info "To download, copy the URL and use: $0 download <url>"
 }
 
+# Function to validate URL
+validate_url() {
+    local url="$1"
+    # Basic URL validation
+    if [[ ! "$url" =~ ^https?:// ]]; then
+        print_error "Invalid URL: must start with http:// or https://"
+        return 1
+    fi
+    # Check if URL is reachable
+    if command -v curl >/dev/null 2>&1; then
+        if ! curl -s -f -I "$url" >/dev/null 2>&1; then
+            print_error "URL is not reachable or does not exist"
+            return 1
+        fi
+    fi
+    return 0
+}
+
 # Function to download a model
 download_model() {
     local url="$1"
     local filename=$(basename "$url")
+    
+    # Validate URL
+    if ! validate_url "$url"; then
+        exit 1
+    fi
     
     # Create models directory if it doesn't exist
     if [ ! -d "$MISTRAL_MODELS_PATH" ]; then
@@ -135,6 +164,19 @@ download_model() {
     fi
     
     if [ $? -eq 0 ]; then
+        # Verify file is not empty
+        if [ ! -s "$filepath" ]; then
+            print_error "Downloaded file is empty"
+            rm -f "$filepath"
+            exit 1
+        fi
+        
+        # Verify file is a valid model file (basic check)
+        local file_type=$(file -b "$filepath" 2>/dev/null || echo "unknown")
+        if [[ ! "$filename" =~ \.(gguf|safetensors|bin)$ ]]; then
+            print_warning "File may not be a valid model format (expected .gguf, .safetensors, or .bin)"
+        fi
+        
         print_success "Model downloaded successfully!"
         print_info "File size: $(du -h "$filepath" | cut -f1)"
         echo ""

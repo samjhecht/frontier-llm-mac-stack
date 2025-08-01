@@ -59,15 +59,15 @@ RUN mkdir -p /models /config
 # Set environment variables
 ENV MISTRAL_MODEL_PATH=/models
 ENV RUST_LOG=info
-ENV MISTRAL_PORT=11434
+ENV MISTRAL_PORT=8080
 ENV MISTRAL_USE_V5_MODE=${USE_V5_MODE}
 
 # Expose the default port
-EXPOSE 11434
+EXPOSE 8080
 
 # Health check endpoint - using OpenAI-compatible models endpoint
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD curl -f http://localhost:11434/v1/models || exit 1
+    CMD curl -f http://localhost:8080/v1/models || exit 1
 
 # Use entrypoint script for flexible configuration
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

@@ -1,0 +1,12 @@
+# Docker Compose override for CUDA (NVIDIA GPU) support
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.cuda.yml up
+
+services:
+  mistral:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
