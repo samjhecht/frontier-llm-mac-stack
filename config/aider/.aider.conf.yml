@@ -1,0 +1,52 @@
+# Aider Configuration
+# This file contains Aider-specific configuration options
+
+# Model settings
+model:
+  # Default model to use with Aider
+  name: "qwen2.5:32b"
+  # API base URL (uses docker network name)
+  api_base: "http://ollama:11434"
+  # Request timeout in seconds
+  timeout: 600
+
+# Editor settings
+editor:
+  # Default editor to use
+  command: "vim"
+  # Whether to use dark mode
+  dark_mode: true
+
+# Git settings
+git:
+  # Auto-commit changes
+  auto_commit: false
+  # Commit message prefix
+  commit_prefix: "feat: "
+
+# Chat settings
+chat:
+  # Show model name in chat
+  show_model: true
+  # Show cost estimates
+  show_cost: false
+  # Enable streaming responses
+  stream: true
+  # Show diff before applying changes
+  show_diffs: true
+
+# File handling
+files:
+  # Maximum file size to edit (in bytes)
+  max_file_size: 1048576
+  # File encoding
+  encoding: "utf-8"
+  # Auto-add files mentioned in chat
+  auto_add: true
+
+# Output settings
+output:
+  # Format for code blocks
+  code_format: "markdown"
+  # Show line numbers in diffs
+  show_line_numbers: true

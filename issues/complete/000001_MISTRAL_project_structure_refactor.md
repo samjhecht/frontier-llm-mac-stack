@@ -63,3 +63,39 @@ frontier-llm-mac-stack/
 - ~50 lines of new shell scripts
 - File movements (no code changes)
 - Documentation updates
+
+## Proposed Solution
+
+Based on my analysis of the current project structure, I will implement the following steps:
+
+1. **Create the new directory structure**:
+   - Create `stacks/` directory at the project root
+   - Create subdirectories: `stacks/ollama/`, `stacks/mistral/`, and `stacks/common/`
+   - Create subdirectories for common components: `stacks/common/monitoring/` and `stacks/common/nginx/`
+
+2. **Separate stack-specific from common components**:
+   - Move Ollama service configuration to `stacks/ollama/docker-compose.yml`
+   - Extract common monitoring services (Prometheus, Grafana, Node-exporter) to `stacks/common/monitoring/docker-compose.yml`
+   - Extract Nginx configuration to `stacks/common/nginx/docker-compose.yml`
+   - Create Ollama-specific `.env.example` with only Ollama-related variables
+
+3. **Create the stack selection mechanism**:
+   - Implement `stack-select.sh` script to:
+     - List available stacks
+     - Create symlinks for the selected stack's docker-compose files
+     - Generate a combined docker-compose setup that includes common components
+   - Update the root directory to use the symlinked configuration
+
+4. **Update helper scripts**:
+   - Modify existing scripts to work with the new structure
+   - Ensure backward compatibility where possible
+
+5. **Reorganize documentation**:
+   - Create `docs/stacks/` directory structure
+   - Move Ollama-specific documentation
+   - Create placeholder documentation for Mistral
+
+6. **Test the refactoring**:
+   - Verify Ollama stack continues to work as before
+   - Test stack selection mechanism
+   - Ensure all helper scripts function correctly

@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # Mistral.rs Inference Server
+  mistral:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
+    image: frontier-mistral:latest
+    container_name: frontier-mistral
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - mistral-models:/models
+      - ./config/mistral:/config
+    environment:
+      - RUST_LOG=info
+      - MISTRAL_MODEL_PATH=/models
+      - MISTRAL_PORT=11434
+      - MISTRAL_HOST=0.0.0.0
+    command: >
+      --port 11434
+      --model-path /models
+      --host 0.0.0.0
+    deploy:
+      resources:
+        limits:
+          memory: ${MISTRAL_MEMORY_LIMIT:-64G}
+        reservations:
+          memory: ${MISTRAL_MEMORY_RESERVATION:-32G}
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - frontier-llm-network
+
+volumes:
+  mistral-models:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MISTRAL_MODELS_PATH:-./data/mistral-models}
+
+networks:
+  frontier-llm-network:
+    external: true

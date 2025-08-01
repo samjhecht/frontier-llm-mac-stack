@@ -215,8 +215,7 @@ git init
 # Create a test file
 cat > test.py << 'PYTHON'
 def hello():
-    # TODO: implement greeting function
-    pass
+    return "Hello, World!"
 PYTHON
 
 # Test Aider

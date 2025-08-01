@@ -4,12 +4,17 @@ A complete self-hosted LLM infrastructure with coding agent capabilities, design
 
 ## Overview
 
-This project provides everything needed to run a powerful, self-hosted LLM environment with:
-- **Ollama** for LLM serving (initially Qwen2.5-Coder, upgradeable to Qwen3-235B)
-- **Aider** for AI pair programming
-- **Prometheus & Grafana** for monitoring
+This project provides everything needed to run a powerful, self-hosted LLM environment with support for multiple inference engines:
+
+### Available Stacks
+- **Ollama Stack** (Production Ready) - Mature Go-based LLM serving
+- **Mistral Stack** (Coming Soon) - High-performance Rust-based inference
+
+### Common Features
+- **Prometheus & Grafana** for comprehensive monitoring
 - **Docker Compose** for easy deployment
 - **Nginx** reverse proxy for secure access
+- **Flexible stack selection** for choosing inference engines
 
 ## Prerequisites
 
@@ -25,96 +30,155 @@ This project provides everything needed to run a powerful, self-hosted LLM envir
 - Git
 - SSH access between machines
 
-## Setup Instructions
+## Quick Start
 
-### Step 1: Enable SSH Access on Mac Studio
+### Step 1: Clone and Configure
 
-Before running any automated setup, you must manually enable SSH access on your Mac Studio. 
+```bash
+git clone https://github.com/yourusername/frontier-llm-mac-stack.git
+cd frontier-llm-mac-stack
+```
 
-**See [docs/ssh-setup-guide.md](docs/ssh-setup-guide.md) for detailed instructions.**
+### Step 2: Select Your Stack
 
-Quick steps:
-1. On Mac Studio: System Settings → General → Sharing → Enable Remote Login
-2. Test from MacBook Pro: `ssh username@mac-studio.local`
-3. Set up SSH keys for passwordless access (recommended)
+```bash
+# List available stacks
+./stack-select.sh list
 
-### Step 2: Clone Repository on Both Machines
+# Select a stack (ollama is recommended for production)
+./stack-select.sh select ollama
+# or for experimental Mistral support:
+# ./stack-select.sh select mistral
+```
 
-1. **On your MacBook Pro:**
+### Step 3: Configure Environment
+
+```bash
+# Copy the stack-specific environment template
+cp .env.example .env
+# Edit .env with your specific configuration
+vim .env
+```
+
+### Step 4: Start the Stack
+
+```bash
+# Start all services
+./start.sh
+
+# Pull the default model (for Ollama stack)
+./pull-model.sh
+```
+
+### Step 5: Verify Installation
+
+```bash
+# Test the LLM API
+curl http://localhost:11434/api/version
+
+# Access monitoring dashboards
+open http://localhost:3000  # Grafana (admin/changeme123!)
+open http://localhost:9090  # Prometheus
+```
+
+## Setup Instructions (Detailed)
+
+### Remote Mac Studio Setup
+
+If deploying to a remote Mac Studio:
+
+1. **Enable SSH Access on Mac Studio**
+   - See [docs/ssh-setup-guide.md](docs/ssh-setup-guide.md) for detailed instructions
+   - System Settings → General → Sharing → Enable Remote Login
+   - Test: `ssh username@mac-studio.local`
+
+2. **Clone on Both Machines**
    ```bash
+   # On your MacBook Pro
    git clone https://github.com/yourusername/frontier-llm-mac-stack.git
    cd frontier-llm-mac-stack
-   ```
-
-2. **On Mac Studio (via SSH):**
-   ```bash
+   
+   # On Mac Studio (via SSH)
    ssh username@mac-studio.local
    git clone https://github.com/yourusername/frontier-llm-mac-stack.git
    cd frontier-llm-mac-stack
    ```
 
-### Step 3: Automated Setup with swissarmyhammer
+3. **Run Setup on Mac Studio**
+   ```bash
+   # SSH to Mac Studio and follow the Quick Start steps above
+   ssh username@mac-studio.local
+   cd frontier-llm-mac-stack
+   ./stack-select.sh select ollama
+   # Continue with steps 3-5 from Quick Start
+   ```
 
-Once SSH access is configured, use swissarmyhammer to complete the setup:
+## Stack Management
+
+This project uses a flexible multi-stack architecture that allows you to choose between different LLM inference engines.
+
+### Available Commands
 
 ```bash
-# On your MacBook Pro
-cd frontier-llm-mac-stack
-swissarmyhammer --debug flow run implement
+# Stack selection
+./stack-select.sh list        # List available stacks
+./stack-select.sh select <stack>  # Select a stack
+./stack-select.sh current     # Show current stack
+
+# Service management
+./start.sh                    # Start all services
+./stop.sh                     # Stop all services
+./docker-compose-wrapper.sh ps     # Check service status
+./docker-compose-wrapper.sh logs -f  # View logs
+
+# Model management
+./pull-model.sh               # Pull default model (Ollama only)
+./pull-model.sh <model-name>  # Pull specific model
 ```
 
-**What this does:**
-- Reads the implementation plan from `specifications/local-llm-stack-setup.md`
-- Executes all setup commands via SSH on Mac Studio
-- Sets up Docker containers with Ollama, Prometheus, and Grafana
-- Pulls initial model (Qwen2.5-Coder-32B) for testing
-- Configures Aider on both machines
-- Runs integration tests to verify everything works
+### Stack-Specific Features
 
-**Note:** The automation assumes:
-- SSH access is working (test with `ssh username@mac-studio.local`)
-- Docker Desktop is installed and running on Mac Studio
-- You have sudo privileges on Mac Studio
+| Feature | Ollama Stack | Mistral Stack |
+|---------|-------------|---------------|
+| Status | Production Ready | Experimental |
+| API | Full Ollama API | Ollama-compatible subset |
+| Model Pull | Automatic | Manual download |
+| Model Formats | GGUF | GGUF, SafeTensors |
+| GPU Support | Metal, CUDA | CUDA only |
+| Documentation | Complete | In progress |
 
-### Step 4: Verify Installation
+For detailed stack information, see:
+- [Ollama Stack Documentation](docs/stacks/ollama/README.md)
+- [Mistral Stack Documentation](docs/stacks/mistral/README.md)
 
-After setup completes:
+## Manual Setup Options
 
-```bash
-# Test from MacBook Pro
-curl http://mac-studio.local:11434/api/version
+### Native Ollama Installation (without Docker)
 
-# Access monitoring
-open http://mac-studio.local:3000  # Grafana
-open http://mac-studio.local:9090  # Prometheus
-```
-
-## Manual Setup (Alternative)
-
-If you prefer manual setup instead of using swissarmyhammer:
-
-### Option 1: Docker Setup (Recommended)
+For users who prefer running Ollama natively:
 
 ```bash
-# On Mac Studio
-cd frontier-llm-mac-stack
-./scripts/setup/docker-setup.sh
-cp .env.example .env
-# Edit .env with your settings
-./start.sh
-./pull-model.sh
-```
-
-### Option 2: Native Installation
-
-```bash
-# On Mac Studio
-cd frontier-llm-mac-stack
+# Install dependencies and Ollama
 ./scripts/setup/01-install-dependencies.sh
 ./scripts/setup/02-install-ollama.sh
 ./scripts/setup/03-configure-ollama-service.sh
 ./scripts/setup/04-pull-models.sh
 ./scripts/setup/05-install-aider.sh
+```
+
+### Building Mistral Stack from Source
+
+```bash
+# Select Mistral stack
+./stack-select.sh select mistral
+
+# Build the Docker image
+cd stacks/mistral
+./build.sh
+
+# Return to root and start
+cd ../..
+./start.sh
 ```
 
 ## Architecture
@@ -123,7 +187,7 @@ cd frontier-llm-mac-stack
 ┌─────────────────┐         ┌──────────────────┐
 │  MacBook Pro    │   LAN   │   Mac Studio     │
 │                 ├─────────┤                  │
-│ - Aider Client  │         │ - Ollama Server  │
+│ - Aider Client  │         │ - LLM Server     │
 │ - Web Browser   │         │ - Monitoring     │
 │                 │         │ - Docker Stack   │
 └─────────────────┘         └──────────────────┘
@@ -133,17 +197,19 @@ cd frontier-llm-mac-stack
 
 ### Core Services
 
-- **Ollama** (port 11434): LLM API server
-- **Grafana** (port 3000): Metrics visualization
-- **Prometheus** (port 9090): Metrics collection
-- **Nginx** (port 80/443): Reverse proxy
+- **LLM API Server** (port 11434): Ollama or Mistral.rs based on selected stack
+- **Grafana** (port 3000): Metrics visualization and dashboards
+- **Prometheus** (port 9090): Time-series metrics collection
+- **Nginx** (port 80/443): Reverse proxy with SSL support
+- **Node Exporter** (port 9100): System metrics collection
 
 ### Access Points
 
 After starting the stack:
-- Ollama API: `http://localhost:11434`
-- Grafana Dashboard: `http://localhost:3000` (admin/frontier-llm)
+- LLM API: `http://localhost:11434`
+- Grafana Dashboard: `http://localhost:3000` (check .env for credentials)
 - Prometheus: `http://localhost:9090`
+- Metrics: `http://localhost:9100/metrics`
 
 ## Using Aider
 
@@ -267,14 +333,27 @@ curl http://localhost:11434/api/version
 
 ```
 frontier-llm-mac-stack/
-├── docker-compose.yml       # Container orchestration
-├── .env.example            # Environment configuration template
+├── stack-select.sh         # Stack selection tool
+├── docker-compose-wrapper.sh  # Multi-stack compose wrapper
+├── start.sh               # Start selected stack
+├── stop.sh                # Stop all services
+├── pull-model.sh          # Model download tool
+├── .env.example           # Common environment template
+├── stacks/
+│   ├── common/           # Shared services (monitoring, nginx)
+│   ├── ollama/           # Ollama stack configuration
+│   └── mistral/          # Mistral stack configuration
 ├── scripts/
-│   ├── setup/             # Installation scripts
-│   ├── testing/           # Test and benchmark tools
-│   └── backup/            # Backup utilities
-├── config/                # Service configurations
-└── specifications/        # Detailed implementation plans
+│   ├── setup/            # Installation scripts
+│   ├── testing/          # Integration tests
+│   └── validate-env.sh   # Environment validation
+├── config/               # Runtime configurations
+│   ├── ollama/          # Ollama-specific configs
+│   ├── mistral/         # Mistral-specific configs
+│   └── aider/           # Aider configuration
+├── docs/
+│   └── stacks/          # Stack-specific documentation
+└── specifications/       # Implementation plans
 ```
 
 ## Troubleshooting SSH Connection
@@ -304,22 +383,23 @@ If you can't connect via SSH:
 
 ## Performance Optimization
 
-For best performance with large models:
+For detailed resource allocation guidance, see [docs/resource-allocation.md](docs/resource-allocation.md).
 
-1. **Disable sleep on Mac Studio:**
+Quick tips for best performance:
+
+1. **Configure Docker Desktop (macOS):**
+   - Settings → Resources → Memory: 80% of system RAM
+   - Settings → Resources → CPUs: Number of cores - 2
+
+2. **Adjust memory limits in .env:**
    ```bash
-   sudo pmset -a sleep 0
-   sudo pmset -a disksleep 0
+   OLLAMA_MEMORY_LIMIT=64G
+   OLLAMA_MEMORY_RESERVATION=32G
    ```
 
-2. **Increase Docker memory allocation:**
-   - Docker Desktop > Settings > Resources
-   - Set Memory to 128GB+ for Qwen3-235B
-
-3. **Monitor temperatures:**
-   ```bash
-   sudo powermetrics --samplers smc | grep -i temp
-   ```
+3. **Monitor resource usage:**
+   - Grafana dashboards: http://localhost:3000
+   - Real-time stats: `docker stats`
 
 ## Contributing
 
