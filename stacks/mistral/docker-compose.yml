@@ -10,17 +10,18 @@ services:
     container_name: frontier-mistral
     restart: unless-stopped
     ports:
-      - "11434:11434"
+      - "${MISTRAL_API_PORT:-8080}:8080"
     volumes:
       - mistral-models:/models
       - ./config/mistral:/config
     environment:
-      - RUST_LOG=info
+      - RUST_LOG=${MISTRAL_LOG_LEVEL:-info}
       - MISTRAL_MODEL_PATH=/models
-      - MISTRAL_PORT=11434
+      - MISTRAL_PORT=${MISTRAL_API_PORT:-8080}
       - MISTRAL_HOST=0.0.0.0
+      - MISTRAL_MAX_BATCH_SIZE=${MISTRAL_MAX_BATCH_SIZE:-8}
     command: >
-      --port 11434
+      --port ${MISTRAL_API_PORT:-8080}
       --model-path /models
       --host 0.0.0.0
     deploy:
@@ -34,13 +35,19 @@ services:
               count: all
               capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/v1/models"]
+      test: ["CMD", "curl", "-f", "http://localhost:${MISTRAL_API_PORT:-8080}/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
     networks:
       - frontier-llm-network
+      - frontier-monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mistral-models:
@@ -52,4 +59,6 @@ volumes:
 
 networks:
   frontier-llm-network:
+    external: true
+  frontier-monitoring:
     external: true

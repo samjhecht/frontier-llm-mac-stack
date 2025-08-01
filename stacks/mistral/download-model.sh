@@ -31,6 +31,10 @@ print_header() {
     echo -e "${BLUE}=== $1 ===${NC}"
 }
 
+print_warning() {
+    echo -e "${YELLOW}WARNING: $1${NC}"
+}
+
 # Load environment variables
 if [ -f "${ROOT_DIR}/.env" ]; then
     source "${ROOT_DIR}/.env"

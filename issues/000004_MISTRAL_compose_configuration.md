@@ -98,3 +98,38 @@ networks:
 - ~150 lines of Docker Compose configuration
 - ~50 lines of environment configuration
 - Helper script adaptations
+
+## Proposed Solution
+
+After analyzing the existing codebase, I've identified the following implementation steps:
+
+### 1. Update Docker Compose Configuration
+The current `docker-compose.yml` exists but needs modifications:
+- Add `frontier-monitoring` network alongside the existing `frontier-llm-network`
+- Update the include mechanism to reference common monitoring (currently missing)
+- Ensure proper API port configuration (currently using 11434, issue specifies 8080 as default)
+- Add logging configuration
+
+### 2. Enhance Environment Configuration
+The `.env.example` file exists but needs additional variables:
+- Add `MISTRAL_LOG_LEVEL` variable
+- Add `MISTRAL_MAX_BATCH_SIZE` variable
+- Ensure consistency between compose file and environment variables
+- Add Metal/GPU acceleration configuration options
+
+### 3. Create Configuration Directory Structure
+- Create `config/mistral` directory for Mistral-specific configuration files
+- This directory is already referenced in the docker-compose volumes but doesn't exist
+
+### 4. Create Service Management Scripts
+Based on the existing scripts in `/scripts`, create Mistral-specific versions:
+- `scripts/mistral-start.sh` - Start Mistral service
+- `scripts/mistral-stop.sh` - Stop Mistral service
+- `scripts/mistral-status.sh` - Check Mistral service health
+- Update existing `download-model.sh` if needed for Mistral.rs format
+
+### 5. Integration Testing
+- Verify Mistral service connects to both networks
+- Test health check endpoint
+- Ensure monitoring metrics are collected
+- Validate resource limits are enforced
