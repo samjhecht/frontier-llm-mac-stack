@@ -197,8 +197,7 @@ test_aider_ollama() {
     # Create test file
     cat > test.py << 'EOF'
 def add(a, b):
-    # TODO: implement addition
-    pass
+    return a + b
 EOF
     
     # Test Aider with Ollama

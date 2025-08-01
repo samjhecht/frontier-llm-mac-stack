@@ -1,0 +1,7 @@
+# Base docker-compose configuration
+# Defines shared resources like networks
+
+networks:
+  frontier-llm-network:
+    name: frontier-llm-network
+    driver: bridge

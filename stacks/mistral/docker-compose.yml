@@ -1,19 +1,26 @@
-version: '3.8'
-
 services:
-  # Mistral.rs Inference Server (placeholder - to be implemented)
+  # Mistral.rs Inference Server
   mistral:
-    image: mistral-rs:latest  # To be built from source
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
+    image: frontier-mistral:latest
     container_name: frontier-mistral
     restart: unless-stopped
     ports:
-      - "11434:11434"  # Using same port as Ollama for API compatibility
+      - "11434:11434"
     volumes:
       - mistral-models:/models
       - ./config/mistral:/config
     environment:
-      - MISTRAL_HOST=0.0.0.0:11434
+      - RUST_LOG=info
       - MISTRAL_MODEL_PATH=/models
+      - MISTRAL_PORT=11434
+      - MISTRAL_HOST=0.0.0.0
+    command: >
+      --port 11434
+      --model-path /models
+      --host 0.0.0.0
     deploy:
       resources:
         limits:
@@ -29,7 +36,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     networks:
       - frontier-llm-network
 

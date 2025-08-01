@@ -5,6 +5,13 @@
 
 set -e
 
+# Check if docker-compose is available
+if ! command -v docker-compose &> /dev/null; then
+    echo "Error: docker-compose is not installed or not in PATH"
+    echo "Please install docker-compose to continue"
+    exit 1
+fi
+
 # Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
