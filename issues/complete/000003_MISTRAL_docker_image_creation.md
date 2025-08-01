@@ -88,3 +88,39 @@ ENTRYPOINT ["/usr/local/bin/mistralrs-server"]
 - ~100 lines of Dockerfile
 - ~50 lines of entrypoint script
 - Configuration files
+
+
+## Proposed Solution
+
+After analyzing the existing code and mistral.rs capabilities, I will implement the following:
+
+1. **Create a Metal-enabled Dockerfile** - Update the existing Dockerfile to build with Metal support instead of CUDA for Mac Studio compatibility
+2. **Create a flexible entrypoint script** - Build an entrypoint that can handle various configuration options and model loading scenarios
+3. **Update build script** - Modify the build script to support both CUDA and Metal builds based on the target platform
+4. **Add health check implementation** - Ensure proper health checking against the mistral.rs server endpoints
+
+### Implementation Steps:
+
+1. Create a new Dockerfile that:
+   - Uses multi-stage build with Rust base image
+   - Builds mistral.rs with `metal` feature for Mac acceleration
+   - Creates a minimal runtime image
+   - Properly configures model paths and environment variables
+
+2. Create an entrypoint script that:
+   - Supports dynamic configuration via environment variables
+   - Handles model loading parameters
+   - Implements graceful shutdown
+   - Provides flexible server startup options
+
+3. Update the build script to:
+   - Detect the target platform (Mac vs Linux)
+   - Build appropriate Docker image based on platform
+   - Skip NVIDIA runtime check on Mac
+   - Tag images appropriately
+
+4. Test the complete solution:
+   - Verify Docker image builds successfully
+   - Ensure mistral.rs server starts properly
+   - Test health check endpoint
+   - Verify Metal acceleration is available
