@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # Ollama LLM Server
   ollama:
@@ -18,9 +20,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64G
+          memory: ${OLLAMA_MEMORY_LIMIT:-64G}
         reservations:
-          memory: 32G
+          memory: ${OLLAMA_MEMORY_RESERVATION:-32G}
           devices:
             - driver: nvidia
               count: all

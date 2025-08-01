@@ -4,7 +4,18 @@ set -euo pipefail
 # test-integration.sh - Integration testing for the entire LLM stack
 # Tests all components working together
 
-echo "=== Frontier LLM Stack Integration Tests ==="
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+
+# Load current stack
+if [ -f "${ROOT_DIR}/.current-stack" ]; then
+    CURRENT_STACK=$(cat "${ROOT_DIR}/.current-stack")
+else
+    echo "Error: No stack selected. Please run './stack-select.sh select <stack>' first."
+    exit 1
+fi
+
+echo "=== Frontier LLM Stack Integration Tests (${CURRENT_STACK} stack) ==="
 
 # Color codes
 RED='\033[0;31m'
@@ -13,16 +24,34 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Function to capitalize string (portable)
+capitalize() {
+    echo "$1" | awk '{print toupper(substr($0,1,1)) tolower(substr($0,2))}'
+}
+
 # Test results
 PASSED=0
 FAILED=0
 SKIPPED=0
 
 # Configuration
-OLLAMA_HOST="${OLLAMA_HOST:-localhost}"
-OLLAMA_PORT="${OLLAMA_PORT:-11434}"
+LLM_HOST="${LLM_HOST:-localhost}"
+LLM_PORT="${LLM_PORT:-11434}"
 GRAFANA_PORT="${GRAFANA_PORT:-3000}"
 PROMETHEUS_PORT="${PROMETHEUS_PORT:-9090}"
+
+# Stack-specific configuration
+if [ "$CURRENT_STACK" = "ollama" ]; then
+    CONTAINER_NAME="frontier-ollama"
+    API_VERSION_ENDPOINT="/api/version"
+    API_MODELS_ENDPOINT="/api/tags"
+    API_GENERATE_ENDPOINT="/api/generate"
+else
+    CONTAINER_NAME="frontier-mistral"
+    API_VERSION_ENDPOINT="/v1/models"
+    API_MODELS_ENDPOINT="/v1/models"
+    API_GENERATE_ENDPOINT="/v1/completions"
+fi
 
 # Function to print colored output
 print_test_header() { echo -e "\n${BLUE}TEST: $1${NC}"; }
@@ -52,44 +81,52 @@ test_docker() {
     return 0
 }
 
-# Test Ollama service
-test_ollama() {
-    print_test_header "Ollama Service"
+# Test LLM service (Ollama or Mistral)
+test_llm_service() {
+    print_test_header "$(capitalize "$CURRENT_STACK") Service"
     
-    # Check if Ollama image is being downloaded
-    if docker images | grep -q "ollama/ollama.*<none>"; then
-        print_skip "Ollama image is still downloading"
-        print_info "Run tests again after image download completes"
-        return 0
-    fi
-    
-    # Check if Ollama container exists
-    if ! docker ps -a | grep -q "ollama"; then
-        print_skip "Ollama container not found - services may not be started"
+    # Check if container exists
+    if ! docker ps -a | grep -q "$CONTAINER_NAME"; then
+        print_skip "$(capitalize "$CURRENT_STACK") container not found - services may not be started"
         print_info "Run './start.sh' to start services"
         return 0
     fi
     
-    if curl -s --max-time 5 "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/version" > /dev/null 2>&1; then
-        print_pass "Ollama API is accessible"
+    # Test API endpoint
+    if curl -s --max-time 5 "http://${LLM_HOST}:${LLM_PORT}${API_VERSION_ENDPOINT}" > /dev/null 2>&1; then
+        print_pass "$(capitalize "$CURRENT_STACK") API is accessible"
         
-        # Get version
-        version=$(curl -s --max-time 5 "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/version" | jq -r '.version' 2>/dev/null || echo "unknown")
-        print_info "Ollama version: $version"
+        if [ "$CURRENT_STACK" = "ollama" ]; then
+            # Get Ollama version
+            version=$(curl -s --max-time 5 "http://${LLM_HOST}:${LLM_PORT}${API_VERSION_ENDPOINT}" | jq -r '.version' 2>/dev/null || echo "unknown")
+            print_info "Ollama version: $version"
+        else
+            print_info "Mistral.rs server is running"
+        fi
     else
-        print_fail "Cannot connect to Ollama API"
+        print_fail "Cannot connect to $(capitalize "$CURRENT_STACK") API"
         return 1
     fi
     
     # Check for models
-    models=$(curl -s --max-time 5 "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/tags" 2>/dev/null | jq -r '.models[]?.name' 2>/dev/null || true)
-    if [[ -n "$models" ]]; then
-        print_pass "Models are available"
-        echo "$models" | sed 's/^/  - /'
+    if [ "$CURRENT_STACK" = "ollama" ]; then
+        models=$(curl -s --max-time 5 "http://${LLM_HOST}:${LLM_PORT}${API_MODELS_ENDPOINT}" 2>/dev/null | jq -r '.models[]?.name' 2>/dev/null || true)
+        if [[ -n "$models" ]]; then
+            print_pass "Models are available"
+            echo "$models" | sed 's/^/  - /'
+        else
+            print_fail "No models found"
+            print_info "Run './pull-model.sh' to download a model"
+            return 1
+        fi
     else
-        print_fail "No models found"
-        print_info "Run './pull-model.sh' to download a model"
-        return 1
+        # For Mistral, just check if the models endpoint responds
+        if curl -s --max-time 5 "http://${LLM_HOST}:${LLM_PORT}${API_MODELS_ENDPOINT}" > /dev/null 2>&1; then
+            print_pass "Mistral models endpoint is accessible"
+            print_info "Ensure models are in: ${MISTRAL_MODELS_PATH:-./data/mistral-models}"
+        else
+            print_fail "Mistral models endpoint not accessible"
+        fi
     fi
 }
 
@@ -97,32 +134,38 @@ test_ollama() {
 test_model_response() {
     print_test_header "Model Response"
     
-    # Get first available model
-    model=$(curl -s --max-time 5 "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/tags" 2>/dev/null | jq -r '.models[0].name' 2>/dev/null || true)
-    
-    if [[ -z "$model" ]]; then
-        print_skip "No model available for testing"
-        return 0
-    fi
-    
-    print_info "Testing model: $model"
-    
-    # Test simple prompt
-    response=$(curl -s --max-time 10 -X POST "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/generate" \
-        -H "Content-Type: application/json" \
-        -d '{
-            "model": "'"$model"'",
-            "prompt": "Say hello",
-            "stream": false
-        }' 2>/dev/null)
-    
-    if [[ -n "$response" ]] && echo "$response" | jq -e '.response' > /dev/null 2>&1; then
-        print_pass "Model responds to prompts"
-        response_text=$(echo "$response" | jq -r '.response' | head -c 100)
-        print_info "Response preview: ${response_text}..."
+    if [ "$CURRENT_STACK" = "ollama" ]; then
+        # Get first available model
+        model=$(curl -s --max-time 5 "http://${LLM_HOST}:${LLM_PORT}/api/tags" 2>/dev/null | jq -r '.models[0].name' 2>/dev/null || true)
+        
+        if [[ -z "$model" ]]; then
+            print_skip "No model available for testing"
+            return 0
+        fi
+        
+        print_info "Testing model: $model"
+        
+        # Test simple prompt
+        response=$(curl -s --max-time 10 -X POST "http://${LLM_HOST}:${LLM_PORT}/api/generate" \
+            -H "Content-Type: application/json" \
+            -d '{
+                "model": "'"$model"'",
+                "prompt": "Say hello",
+                "stream": false
+            }' 2>/dev/null)
+        
+        if [[ -n "$response" ]] && echo "$response" | jq -e '.response' > /dev/null 2>&1; then
+            print_pass "Model responds to prompts"
+            response_text=$(echo "$response" | jq -r '.response' | head -c 100)
+            print_info "Response preview: ${response_text}..."
+        else
+            print_fail "Model did not respond correctly"
+            return 1
+        fi
     else
-        print_fail "Model did not respond correctly"
-        return 1
+        # For Mistral, skip actual generation test for now
+        print_skip "Mistral generation test requires a loaded model"
+        print_info "Add models to ${MISTRAL_MODELS_PATH:-./data/mistral-models}"
     fi
 }
 
@@ -180,9 +223,9 @@ test_aider() {
     fi
 }
 
-# Test Aider + Ollama integration
-test_aider_ollama() {
-    print_test_header "Aider + Ollama Integration"
+# Test Aider + LLM integration
+test_aider_llm() {
+    print_test_header "Aider + $(capitalize "$CURRENT_STACK") Integration"
     
     if ! command -v aider &> /dev/null; then
         print_skip "Aider not installed"
@@ -200,28 +243,33 @@ def add(a, b):
     return a + b
 EOF
     
-    # Test Aider with Ollama
-    export OLLAMA_API_BASE="http://${OLLAMA_HOST}:${OLLAMA_PORT}"
-    
-    # Get first available model
-    model=$(curl -s --max-time 5 "${OLLAMA_API_BASE}/api/tags" 2>/dev/null | jq -r '.models[0].name' 2>/dev/null || true)
-    
-    if [[ -z "$model" ]]; then
-        print_skip "No model available for Aider test"
-        cd - > /dev/null
-        rm -rf "$test_dir"
-        return 0
-    fi
-    
-    # Try to run Aider (non-interactive test)
-    if echo "implement the add function" | timeout 30 aider --model "ollama/${model}" --yes --no-auto-commits test.py 2>/dev/null; then
-        if grep -q "return a + b" test.py; then
-            print_pass "Aider successfully modified code using Ollama"
+    if [ "$CURRENT_STACK" = "ollama" ]; then
+        # Test Aider with Ollama
+        export OLLAMA_API_BASE="http://${LLM_HOST}:${LLM_PORT}"
+        
+        # Get first available model
+        model=$(curl -s --max-time 5 "${OLLAMA_API_BASE}/api/tags" 2>/dev/null | jq -r '.models[0].name' 2>/dev/null || true)
+        
+        if [[ -z "$model" ]]; then
+            print_skip "No model available for Aider test"
+            cd - > /dev/null
+            rm -rf "$test_dir"
+            return 0
+        fi
+        
+        # Try to run Aider (non-interactive test)
+        if echo "implement the add function" | timeout 30 aider --model "ollama/${model}" --yes --no-auto-commits test.py 2>/dev/null; then
+            if grep -q "return a + b" test.py; then
+                print_pass "Aider successfully modified code using Ollama"
+            else
+                print_fail "Aider ran but did not modify code as expected"
+            fi
         else
-            print_fail "Aider ran but did not modify code as expected"
+            print_fail "Aider failed to run with Ollama"
         fi
     else
-        print_fail "Aider failed to run with Ollama"
+        print_skip "Aider integration with Mistral not yet configured"
+        print_info "Mistral uses OpenAI-compatible API"
     fi
     
     cd - > /dev/null
@@ -311,14 +359,14 @@ run_all_tests() {
     test_permissions
     
     # Service tests
-    test_ollama
+    test_llm_service
     test_model_response
     test_prometheus
     test_grafana
     
     # Integration tests
     test_aider
-    test_aider_ollama
+    test_aider_llm
     
     # System tests
     test_performance
@@ -346,8 +394,8 @@ case "${1:-}" in
     docker)
         test_docker
         ;;
-    ollama)
-        test_ollama
+    llm|ollama|mistral)
+        test_llm_service
         test_model_response
         ;;
     monitoring)
@@ -356,11 +404,11 @@ case "${1:-}" in
         ;;
     aider)
         test_aider
-        test_aider_ollama
+        test_aider_llm
         ;;
     quick)
         test_docker
-        test_ollama
+        test_llm_service
         ;;
     *)
         run_all_tests

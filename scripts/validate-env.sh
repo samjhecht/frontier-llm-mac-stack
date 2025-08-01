@@ -70,12 +70,30 @@ if [ -f "$ROOT_DIR/.current-stack" ]; then
     
     case "$CURRENT_STACK" in
         ollama)
+            echo -e "\n${YELLOW}Checking Ollama-specific variables...${NC}"
             check_env_var "OLLAMA_MODELS_PATH"
             check_path "OLLAMA_MODELS_PATH"
+            check_env_var "OLLAMA_HOST"
+            check_env_var "OLLAMA_KEEP_ALIVE"
+            check_env_var "OLLAMA_NUM_PARALLEL"
+            check_env_var "OLLAMA_MAX_LOADED_MODELS"
+            check_env_var "OLLAMA_MEMORY_LIMIT"
+            check_env_var "OLLAMA_MEMORY_RESERVATION"
+            check_env_var "DEFAULT_MODEL"
             ;;
         mistral)
+            echo -e "\n${YELLOW}Checking Mistral-specific variables...${NC}"
             check_env_var "MISTRAL_MODELS_PATH"
             check_path "MISTRAL_MODELS_PATH"
+            check_env_var "MISTRAL_HOST"
+            check_env_var "MISTRAL_MODEL_PATH"
+            check_env_var "MISTRAL_PORT"
+            check_env_var "RUST_LOG"
+            check_env_var "MISTRAL_MEMORY_LIMIT"
+            check_env_var "MISTRAL_MEMORY_RESERVATION"
+            check_env_var "CUDA_VERSION"
+            check_env_var "MISTRAL_RS_VERSION"
+            check_env_var "DEFAULT_MODEL"
             ;;
     esac
 fi

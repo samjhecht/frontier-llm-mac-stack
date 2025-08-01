@@ -1,0 +1,47 @@
+# Mistral.rs Configuration
+# This file contains Mistral.rs-specific configuration options
+
+# Model settings
+models:
+  # Path to model files
+  path: "/models"
+  # Model quantization type
+  quantization: "Q4_K_M"
+  # Context length
+  context_length: 8192
+
+# Server settings
+server:
+  # Host to bind to
+  host: "0.0.0.0"
+  # Port to listen on
+  port: 11434
+  # Number of worker threads
+  num_threads: 8
+
+# Inference settings
+inference:
+  # Temperature for sampling
+  temperature: 0.7
+  # Top-p sampling parameter
+  top_p: 0.9
+  # Maximum tokens to generate
+  max_tokens: 2048
+  # Batch size for inference
+  batch_size: 8
+
+# GPU settings
+gpu:
+  # Enable GPU acceleration
+  enabled: true
+  # CUDA compute capability
+  compute_capability: "8.0"
+  # Memory pool size in MB
+  memory_pool_size: 4096
+
+# Logging
+logging:
+  # Rust log level
+  level: "info"
+  # Log format
+  format: "pretty"

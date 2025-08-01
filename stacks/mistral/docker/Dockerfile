@@ -12,14 +12,16 @@ RUN apt-get update && apt-get install -y \
 
 # Clone and build mistral.rs
 WORKDIR /build
-RUN git clone https://github.com/EricLBuehler/mistral.rs.git
+ARG MISTRAL_RS_VERSION=v0.6.0
+RUN git clone --depth 1 --branch ${MISTRAL_RS_VERSION} https://github.com/EricLBuehler/mistral.rs.git
 WORKDIR /build/mistral.rs
 
 # Build the mistralrs-server binary
 RUN cargo build --release --features cuda
 
 # Runtime stage
-FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
+ARG CUDA_VERSION=12.2.0
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu22.04
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
@@ -41,9 +43,9 @@ ENV RUST_LOG=info
 # Expose the default port
 EXPOSE 11434
 
-# Health check endpoint
+# Health check endpoint - using OpenAI-compatible models endpoint
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD curl -f http://localhost:11434/health || exit 1
+    CMD curl -f http://localhost:11434/v1/models || exit 1
 
 # Run the server
 ENTRYPOINT ["mistralrs-server"]

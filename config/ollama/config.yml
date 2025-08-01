@@ -1,0 +1,37 @@
+# Ollama Configuration
+# This file contains Ollama-specific configuration options
+
+# Model settings
+models:
+  # Default model to load on startup
+  default: ""
+  
+  # Model loading options
+  loading:
+    # Number of models to keep loaded simultaneously
+    max_loaded: 2
+    # Keep models loaded for this duration after last use
+    keep_alive: "10m"
+
+# API settings
+api:
+  # Allow API access from any host
+  host: "0.0.0.0"
+  # Port to listen on
+  port: 11434
+  # Number of parallel requests to handle
+  num_parallel: 4
+
+# Performance settings
+performance:
+  # Enable flash attention for improved performance
+  flash_attention: true
+  # GPU memory fraction to use (0.0-1.0)
+  gpu_memory_fraction: 0.9
+
+# Logging
+logging:
+  # Log level: debug, info, warn, error
+  level: "info"
+  # Log format: json, text
+  format: "text"

@@ -1,3 +1,5 @@
+version: '3.8'
+
 # Base docker-compose configuration
 # Defines shared resources like networks
 

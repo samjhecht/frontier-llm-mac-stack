@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # Mistral.rs Inference Server
   mistral:
@@ -24,15 +26,15 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64G
+          memory: ${MISTRAL_MEMORY_LIMIT:-64G}
         reservations:
-          memory: 32G
+          memory: ${MISTRAL_MEMORY_RESERVATION:-32G}
           devices:
             - driver: nvidia
               count: all
               capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:11434/v1/models"]
       interval: 30s
       timeout: 10s
       retries: 3
