@@ -50,6 +50,36 @@ services:
         max-size: ${MISTRAL_LOG_MAX_SIZE:-10m}
         max-file: ${MISTRAL_LOG_MAX_FILE:-3}
 
+  # Ollama API Compatibility Proxy
+  mistral-ollama-proxy:
+    build:
+      context: ./api-proxy
+      dockerfile: Dockerfile
+    image: frontier-mistral-ollama-proxy:latest
+    container_name: frontier-mistral-ollama-proxy
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_API_PORT:-11434}:11434"
+    environment:
+      - RUST_LOG=${PROXY_LOG_LEVEL:-info}
+      - MISTRAL_URL=http://mistral:8080
+      - BIND_ADDRESS=0.0.0.0:11434
+    depends_on:
+      - mistral
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - frontier-llm-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 10m
+        max-file: 3
+
 volumes:
   mistral-models:
     driver: local
