@@ -1,6 +1,8 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  # Set a lower scrape timeout for optional services
+  scrape_timeout: 10s
 
 scrape_configs:
   - job_name: 'prometheus'
@@ -13,26 +15,48 @@ scrape_configs:
 
   - job_name: 'ollama'
     metrics_path: '/api/metrics'
+    # Metrics path differs from Mistral because Ollama uses /api/metrics endpoint
+    scrape_timeout: 10s
+    honor_labels: true
     static_configs:
       - targets: ['frontier-ollama:11434']
         labels:
           engine: 'ollama'
           engine_type: 'inference'
+    relabel_configs:
+      # Mark target as optional to handle when service is not running
+      - source_labels: [__address__]
+        target_label: __param_optional
+        replacement: 'true'
 
   - job_name: 'mistral'
     metrics_path: '/metrics'
+    # Metrics path is standard /metrics for Mistral.rs
+    scrape_timeout: 10s
+    honor_labels: true
     static_configs:
       - targets: ['frontier-mistral:11434']
         labels:
           engine: 'mistral'
           engine_type: 'inference'
+    relabel_configs:
+      # Mark target as optional to handle when service is not running
+      - source_labels: [__address__]
+        target_label: __param_optional
+        replacement: 'true'
 
   - job_name: 'grafana'
     static_configs:
       - targets: ['frontier-grafana:3000']
 
   - job_name: 'nvidia_gpu'
+    scrape_timeout: 10s
     static_configs:
       - targets: ['frontier-nvidia-exporter:9400']
         labels:
           gpu: 'nvidia'
+    relabel_configs:
+      # Mark target as optional to handle when GPU is not available
+      - source_labels: [__address__]
+        target_label: __param_optional
+        replacement: 'true'
