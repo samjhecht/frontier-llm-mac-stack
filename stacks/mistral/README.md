@@ -32,6 +32,18 @@ Key environment variables (configured in `.env`):
 - `MISTRAL_MEMORY_RESERVATION`: Memory reservation (default: 32G)
 - `MISTRAL_LOG_LEVEL`: Log level (default: info)
 - `MISTRAL_MAX_BATCH_SIZE`: Maximum batch size (default: 8)
+- `MISTRAL_MODEL_TYPE`: Model type - plain, gguf, lora, x-lora, toml (default: plain)
+- `MISTRAL_MODEL_ID`: Model identifier for Hugging Face models
+- `ENABLE_METAL`: Enable Metal acceleration on macOS (default: true)
+- `ENABLE_CUDA`: Enable CUDA acceleration on NVIDIA GPUs (default: false)
+
+### Platform-Specific Configuration
+
+The service automatically detects your platform and configures acceleration:
+
+- **macOS**: Uses Metal acceleration by default
+- **Linux with NVIDIA GPU**: Uses CUDA acceleration via docker-compose.cuda.yml
+- **Other**: Falls back to CPU mode
 
 ### Networks
 
@@ -72,6 +84,27 @@ Use the included `download-model.sh` script to download compatible models:
 
 ## Troubleshooting
 
+### Common Issues
+
+1. **Port Conflicts**
+   - If port 8080 is already in use, change `MISTRAL_API_PORT` in `.env`
+   - Check what's using the port: `lsof -i :8080`
+
+2. **Missing Models**
+   - Ensure you've downloaded at least one model using `./download-model.sh`
+   - Models should be in the path specified by `MISTRAL_MODELS_PATH`
+
+3. **Memory Issues**
+   - Reduce `MISTRAL_MEMORY_LIMIT` and `MISTRAL_MEMORY_RESERVATION` in `.env`
+   - Use smaller quantized models (Q4_K_M instead of Q8_0)
+
+4. **GPU/Metal Not Working**
+   - macOS: Ensure Docker Desktop has sufficient resources allocated
+   - Linux: Check NVIDIA drivers with `nvidia-smi`
+   - The service will fall back to CPU if GPU is unavailable
+
+### Debugging Commands
+
 Check logs:
 ```bash
 docker logs -f frontier-mistral
@@ -80,4 +113,14 @@ docker logs -f frontier-mistral
 Check resource usage:
 ```bash
 docker stats frontier-mistral
+```
+
+Test the API:
+```bash
+curl http://localhost:8080/v1/models
+```
+
+Check health status:
+```bash
+curl http://localhost:8080/health
 ```

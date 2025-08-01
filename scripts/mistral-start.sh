@@ -39,13 +39,19 @@ if ! command -v docker-compose &> /dev/null; then
     exit 1
 fi
 
-# Create networks if they don't exist
+# Create networks if they don't exist (with race condition handling)
 for network in "$NETWORK_NAME" "$MONITORING_NETWORK"; do
     if ! docker network inspect "$network" >/dev/null 2>&1; then
         echo "Creating $network..."
-        if ! docker network create "$network"; then
-            echo "Error: Failed to create Docker network $network"
-            exit 1
+        # Try to create the network, but don't fail if it already exists (race condition)
+        if ! docker network create "$network" 2>/dev/null; then
+            # Check if the network now exists (created by another process)
+            if docker network inspect "$network" >/dev/null 2>&1; then
+                echo "Network $network already exists (created by another process)"
+            else
+                echo "Error: Failed to create Docker network $network"
+                exit 1
+            fi
         fi
     fi
 done
@@ -61,10 +67,28 @@ if [ ! -f "$MISTRAL_DIR/.env" ]; then
     fi
 fi
 
+# Ensure model directory exists
+MODELS_PATH="${MISTRAL_MODELS_PATH:-$MISTRAL_DIR/data/mistral-models}"
+if [ ! -d "$MODELS_PATH" ]; then
+    echo "Creating models directory at $MODELS_PATH..."
+    mkdir -p "$MODELS_PATH"
+fi
+
+# Detect platform and select appropriate compose files
+COMPOSE_FILES="-f docker-compose.yml"
+if [ "$(uname)" = "Darwin" ]; then
+    echo "Detected macOS - using Metal acceleration"
+elif [ -e /proc/driver/nvidia/version ]; then
+    echo "Detected NVIDIA GPU - using CUDA acceleration"
+    COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.cuda.yml"
+else
+    echo "No GPU detected - using CPU mode"
+fi
+
 # Start Mistral service
 cd "$MISTRAL_DIR"
 echo "Starting Mistral service..."
-if ! docker-compose up -d mistral; then
+if ! docker-compose $COMPOSE_FILES up -d mistral; then
     echo "Error: Failed to start Mistral service"
     exit 1
 fi

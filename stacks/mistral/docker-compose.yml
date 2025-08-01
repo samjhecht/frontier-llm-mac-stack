@@ -1,4 +1,8 @@
-version: '3.8'
+# Docker Compose configuration for Mistral.rs
+# Includes common monitoring services from ../common/monitoring/docker-compose.yml
+
+include:
+  - ../common/monitoring/docker-compose.yml
 
 services:
   # Mistral.rs Inference Server
@@ -20,34 +24,31 @@ services:
       - MISTRAL_PORT=${MISTRAL_API_PORT:-8080}
       - MISTRAL_HOST=0.0.0.0
       - MISTRAL_MAX_BATCH_SIZE=${MISTRAL_MAX_BATCH_SIZE:-8}
-    command: >
-      --port ${MISTRAL_API_PORT:-8080}
-      --model-path /models
-      --host 0.0.0.0
+      - MISTRAL_MODEL_TYPE=${MISTRAL_MODEL_TYPE:-plain}
+      - MISTRAL_MODEL_ID=${MISTRAL_MODEL_ID:-${DEFAULT_MODEL}}
+      - MISTRAL_USE_V5_MODE=${MISTRAL_USE_V5_MODE:-true}
+    # Command is handled by docker-entrypoint.sh based on environment variables
+    # To use config.toml, set MISTRAL_MODEL_TYPE=toml and mount config at /models/config.toml
     deploy:
       resources:
         limits:
           memory: ${MISTRAL_MEMORY_LIMIT:-64G}
         reservations:
           memory: ${MISTRAL_MEMORY_RESERVATION:-32G}
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${MISTRAL_API_PORT:-8080}/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      interval: ${MISTRAL_HEALTH_INTERVAL:-30s}
+      timeout: ${MISTRAL_HEALTH_TIMEOUT:-10s}
+      retries: ${MISTRAL_HEALTH_RETRIES:-3}
+      start_period: ${MISTRAL_HEALTH_START_PERIOD:-60s}
     networks:
       - frontier-llm-network
       - frontier-monitoring
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: ${MISTRAL_LOG_MAX_SIZE:-10m}
+        max-file: ${MISTRAL_LOG_MAX_FILE:-3}
 
 volumes:
   mistral-models:
@@ -61,4 +62,5 @@ networks:
   frontier-llm-network:
     external: true
   frontier-monitoring:
+    name: frontier-monitoring
     external: true

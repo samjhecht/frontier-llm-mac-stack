@@ -2,7 +2,7 @@
 set -e
 
 # Configuration defaults - make these configurable
-readonly DEFAULT_PORT="${MISTRAL_PORT:-11434}"
+readonly DEFAULT_PORT="${MISTRAL_PORT:-8080}"
 readonly DEFAULT_MODEL_PATH="${MISTRAL_MODEL_PATH:-/models}"
 readonly DEFAULT_LOG_LEVEL="${RUST_LOG:-info}"
 readonly DEFAULT_MAX_SEQS="${MISTRAL_MAX_SEQS:-16}"

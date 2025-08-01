@@ -60,9 +60,44 @@ echo ""
 echo "Checking available models..."
 if response=$(curl -sf "http://localhost:${API_PORT}/v1/models" 2>/dev/null); then
     echo "✓ Models endpoint accessible"
-    echo "  Response: $response"
+    # Parse and display models nicely
+    if command -v jq >/dev/null 2>&1; then
+        model_count=$(echo "$response" | jq '.data | length' 2>/dev/null || echo "0")
+        if [ "$model_count" != "0" ]; then
+            echo "  Found $model_count model(s):"
+            echo "$response" | jq -r '.data[] | "    - \(.id)"' 2>/dev/null || echo "  (unable to parse models)"
+        else
+            echo "  No models loaded"
+            echo "  Use download-model.sh to download models"
+        fi
+    else
+        echo "  Raw response: $response"
+    fi
 else
     echo "✗ Could not access models endpoint"
+fi
+
+# Test basic inference capability
+echo ""
+echo "Testing inference capability..."
+if [ -n "$(curl -sf "http://localhost:${API_PORT}/v1/models" 2>/dev/null | grep -o '"data":\[[^]]*\]' | grep -v '\[\]')" ]; then
+    # Models are loaded, try a simple completion
+    test_response=$(curl -sf -X POST "http://localhost:${API_PORT}/v1/chat/completions" \
+        -H "Content-Type: application/json" \
+        -d '{
+            "messages": [{"role": "user", "content": "Say hello"}],
+            "max_tokens": 10,
+            "temperature": 0.1
+        }' 2>/dev/null || echo "FAILED")
+    
+    if [ "$test_response" != "FAILED" ] && echo "$test_response" | grep -q "content"; then
+        echo "✓ Inference test passed"
+    else
+        echo "✗ Inference test failed or no model specified"
+        echo "  This is normal if no default model is configured"
+    fi
+else
+    echo "  Skipping inference test (no models loaded)"
 fi
 
 # Show recent logs
