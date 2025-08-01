@@ -35,10 +35,22 @@ if ! docker info >/dev/null 2>&1; then
     exit 1
 fi
 
-# Check for NVIDIA Docker runtime (required for CUDA)
-if ! docker info 2>/dev/null | grep -q nvidia; then
-    print_error "NVIDIA Docker runtime not found. Please install nvidia-docker2"
-    print_info "See: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
+# Detect platform
+PLATFORM=$(uname -s)
+ARCH=$(uname -m)
+
+print_info "Detected platform: $PLATFORM $ARCH"
+
+# Set build parameters based on platform
+if [[ "$PLATFORM" == "Darwin" ]]; then
+    print_info "Building for macOS with Metal support"
+    BUILD_FEATURES="metal"
+    RUNTIME_BASE="debian:bookworm-slim"
+    DOCKERFILE="Dockerfile.metal"
+    IMAGE_TAG="frontier-mistral:metal"
+else
+    print_error "This script is for building Metal-enabled images on macOS"
+    print_info "Use build.sh for CUDA builds on Linux"
     exit 1
 fi
 
@@ -56,7 +68,7 @@ if ! git ls-remote https://github.com/EricLBuehler/mistral.rs.git HEAD >/dev/nul
     exit 1
 fi
 
-print_info "Building Mistral.rs Docker image..."
+print_info "Building Mistral.rs Docker image with Metal support..."
 
 # Load environment variables if .env exists
 if [ -f "$SCRIPT_DIR/../.env" ]; then
@@ -66,19 +78,21 @@ elif [ -f "$SCRIPT_DIR/.env" ]; then
 fi
 
 # Set default versions if not specified
-CUDA_VERSION=${CUDA_VERSION:-12.2.0}
 MISTRAL_RS_VERSION=${MISTRAL_RS_VERSION:-v0.5.0}
 
-print_info "Building with CUDA version: $CUDA_VERSION"
 print_info "Building mistral.rs version: $MISTRAL_RS_VERSION"
+print_info "Build features: $BUILD_FEATURES"
 
-# Build the Docker image with build args for better caching
+# Build the Docker image
 if ! docker build \
     --progress=plain \
-    --build-arg CUDA_VERSION="$CUDA_VERSION" \
     --build-arg MISTRAL_RS_VERSION="$MISTRAL_RS_VERSION" \
+    --build-arg BUILD_FEATURES="$BUILD_FEATURES" \
+    --build-arg RUNTIME_BASE="$RUNTIME_BASE" \
+    --tag "${IMAGE_TAG}-latest" \
+    --tag "${IMAGE_TAG}-$(date +%Y%m%d-%H%M%S)" \
     --tag frontier-mistral:latest \
-    --tag frontier-mistral:$(date +%Y%m%d-%H%M%S) \
+    --file "$SCRIPT_DIR/docker/$DOCKERFILE" \
     "$SCRIPT_DIR/docker"; then
     print_error "Docker build failed"
     exit 1
@@ -86,30 +100,34 @@ fi
 
 # Verify the built image
 print_info "Verifying built image..."
-if ! docker image inspect frontier-mistral:latest >/dev/null 2>&1; then
+if ! docker image inspect "${IMAGE_TAG}-latest" >/dev/null 2>&1; then
     print_error "Built image not found"
     exit 1
 fi
 
 # Check if the mistralrs-server binary exists in the image
 print_info "Verifying mistralrs-server binary in image..."
-if ! docker run --rm frontier-mistral:latest which mistralrs-server >/dev/null 2>&1; then
+if ! docker run --rm --entrypoint=ls "${IMAGE_TAG}-latest" /usr/local/bin/mistralrs-server >/dev/null 2>&1; then
     print_error "mistralrs-server binary not found in image"
     exit 1
 fi
 
 # Get image size
-IMAGE_SIZE=$(docker image inspect frontier-mistral:latest --format='{{.Size}}' | numfmt --to=iec-i --suffix=B)
+IMAGE_SIZE=$(docker image inspect "${IMAGE_TAG}-latest" --format='{{.Size}}' | numfmt --to=iec-i --suffix=B 2>/dev/null || echo "Unknown")
 print_info "Image size: $IMAGE_SIZE"
 
-print_success "Mistral.rs Docker image built successfully!"
-print_info "Tagged as: frontier-mistral:latest"
+print_success "Mistral.rs Docker image with Metal support built successfully!"
+print_info "Tagged as: ${IMAGE_TAG}-latest and frontier-mistral:latest"
 
 # Optional: Test the server can start (will fail without models, but checks binary works)
-print_info "Testing server binary (expecting model error)..."
-if docker run --rm frontier-mistral:latest mistralrs-server --help >/dev/null 2>&1; then
+print_info "Testing server binary..."
+if docker run --rm --entrypoint=mistralrs-server "${IMAGE_TAG}-latest" --help >/dev/null 2>&1; then
     print_success "Server binary is functional"
 else
     print_error "Server binary test failed"
     exit 1
 fi
+
+print_info ""
+print_info "To run the server with a model, use:"
+print_info "  docker run -v /path/to/models:/models -p 11434:11434 ${IMAGE_TAG}-latest"

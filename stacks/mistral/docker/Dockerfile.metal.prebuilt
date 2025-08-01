@@ -1,0 +1,39 @@
+# Use a pre-built approach to avoid Rust version compatibility issues
+# This requires building mistral.rs locally on Mac and copying the binary
+
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy pre-built mistralrs-server binary
+# This binary should be built on macOS with Metal support using:
+# cargo build --release --features metal
+COPY mistralrs-server /usr/local/bin/mistralrs-server
+RUN chmod +x /usr/local/bin/mistralrs-server
+
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Create directories for models and config
+RUN mkdir -p /models /config
+
+# Set environment variables
+ENV MISTRAL_MODEL_PATH=/models
+ENV RUST_LOG=info
+ENV MISTRAL_PORT=11434
+
+# Expose the default port (compatible with Ollama)
+EXPOSE 11434
+
+# Health check endpoint - using OpenAI-compatible models endpoint
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:${MISTRAL_PORT}/v1/models || exit 1
+
+# Use entrypoint script for flexible configuration
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
