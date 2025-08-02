@@ -124,8 +124,9 @@ mod tests {
             }),
         };
 
-        let ollama_response = convert_mistral_to_ollama_chat(mistral_response, "mistral:latest".to_string());
-        
+        let ollama_response =
+            convert_mistral_to_ollama_chat(mistral_response, "mistral:latest".to_string());
+
         assert_eq!(ollama_response.model, "mistral:latest");
         assert_eq!(ollama_response.message.role, "assistant");
         assert_eq!(ollama_response.message.content, "Hello!");
@@ -157,8 +158,9 @@ mod tests {
             }),
         };
 
-        let ollama_response = convert_mistral_to_ollama_generate(mistral_response, "mistral:latest".to_string());
-        
+        let ollama_response =
+            convert_mistral_to_ollama_generate(mistral_response, "mistral:latest".to_string());
+
         assert_eq!(ollama_response.model, "mistral:latest");
         assert_eq!(ollama_response.response, "Generated text");
         assert!(ollama_response.done);
@@ -169,7 +171,7 @@ mod tests {
     #[test]
     fn test_create_streaming_chunk_chat() {
         let chunk = create_streaming_chunk("mistral:latest", "Hello", "assistant", true);
-        
+
         assert_eq!(chunk["model"], "mistral:latest");
         assert_eq!(chunk["message"]["role"], "assistant");
         assert_eq!(chunk["message"]["content"], "Hello");
@@ -179,7 +181,7 @@ mod tests {
     #[test]
     fn test_create_streaming_chunk_generate() {
         let chunk = create_streaming_chunk("mistral:latest", "Generated", "assistant", false);
-        
+
         assert_eq!(chunk["model"], "mistral:latest");
         assert_eq!(chunk["response"], "Generated");
         assert_eq!(chunk["done"], false);
@@ -188,7 +190,7 @@ mod tests {
     #[test]
     fn test_create_done_chunk() {
         let chunk = create_done_chunk("mistral:latest");
-        
+
         assert_eq!(chunk["model"], "mistral:latest");
         assert_eq!(chunk["done"], true);
         assert!(chunk["created_at"].is_string());

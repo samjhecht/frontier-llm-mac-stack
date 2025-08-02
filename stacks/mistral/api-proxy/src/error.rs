@@ -103,3 +103,22 @@ impl From<serde_json::Error> for AppError {
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;
+
+impl AppError {
+    pub fn error_type(&self) -> &'static str {
+        match self {
+            AppError::RequestError { source, .. } => {
+                if source.is_timeout() {
+                    "timeout"
+                } else if source.is_connect() {
+                    "connection"
+                } else {
+                    "request"
+                }
+            }
+            AppError::JsonError { .. } => "json_parse",
+            AppError::StreamingError { .. } => "streaming",
+            AppError::InternalError { .. } => "internal",
+        }
+    }
+}

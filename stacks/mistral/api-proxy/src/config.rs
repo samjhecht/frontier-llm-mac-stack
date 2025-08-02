@@ -7,6 +7,7 @@ pub struct Config {
     pub request_timeout_secs: u64,
     pub channel_buffer_size: usize,
     pub max_line_length: usize,
+    pub cors_allowed_origins: Vec<String>,
 }
 
 impl Config {
@@ -27,6 +28,14 @@ impl Config {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(1_000_000), // 1MB default max line length
+            cors_allowed_origins: env::var("CORS_ALLOWED_ORIGINS")
+                .ok()
+                .map(|s| {
+                    s.split(',')
+                        .map(|origin| origin.trim().to_string())
+                        .collect()
+                })
+                .unwrap_or_else(|| vec!["http://localhost:3000".to_string()]), // Default to Grafana
         }
     }
 

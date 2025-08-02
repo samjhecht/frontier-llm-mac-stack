@@ -16,7 +16,10 @@ use crate::converters::{
     create_streaming_chunk,
 };
 use crate::error::{AppError, Result};
-use crate::metrics::{ACTIVE_REQUESTS, GENERATE_DURATION_SECONDS, HTTP_REQUESTS_TOTAL, HTTP_REQUEST_DURATION_SECONDS, STREAMING_CHUNKS_TOTAL};
+use crate::metrics::{
+    ACTIVE_REQUESTS, GENERATE_DURATION_SECONDS, HTTP_REQUESTS_TOTAL, HTTP_REQUEST_DURATION_SECONDS,
+    STREAMING_CHUNKS_TOTAL,
+};
 use crate::models::mistral::{
     MistralChatRequest, MistralChatResponse, MistralMessage, MistralStreamChunk,
 };
@@ -70,7 +73,7 @@ pub async fn handle_generate(
     Json(req): Json<OllamaGenerateRequest>,
 ) -> Result<Response> {
     info!("Handling generate request for model: {}", req.model);
-    
+
     ACTIVE_REQUESTS.inc();
     let _timer = HTTP_REQUEST_DURATION_SECONDS
         .with_label_values(&["generate"])
@@ -99,14 +102,18 @@ pub async fn handle_generate(
     } else {
         handle_sync_request(state, mistral_req, false).await
     };
-    
+
     ACTIVE_REQUESTS.dec();
-    
+
     match &result {
-        Ok(_) => HTTP_REQUESTS_TOTAL.with_label_values(&["generate", "success"]).inc(),
-        Err(_) => HTTP_REQUESTS_TOTAL.with_label_values(&["generate", "error"]).inc(),
+        Ok(_) => HTTP_REQUESTS_TOTAL
+            .with_label_values(&["generate", "success", "none"])
+            .inc(),
+        Err(e) => HTTP_REQUESTS_TOTAL
+            .with_label_values(&["generate", "error", e.error_type()])
+            .inc(),
     }
-    
+
     result
 }
 
@@ -115,7 +122,7 @@ pub async fn handle_chat(
     Json(req): Json<OllamaChatRequest>,
 ) -> Result<Response> {
     info!("Handling chat request for model: {}", req.model);
-    
+
     ACTIVE_REQUESTS.inc();
     let _timer = HTTP_REQUEST_DURATION_SECONDS
         .with_label_values(&["chat"])
@@ -141,14 +148,18 @@ pub async fn handle_chat(
     } else {
         handle_sync_request(state, mistral_req, true).await
     };
-    
+
     ACTIVE_REQUESTS.dec();
-    
+
     match &result {
-        Ok(_) => HTTP_REQUESTS_TOTAL.with_label_values(&["chat", "success"]).inc(),
-        Err(_) => HTTP_REQUESTS_TOTAL.with_label_values(&["chat", "error"]).inc(),
+        Ok(_) => HTTP_REQUESTS_TOTAL
+            .with_label_values(&["chat", "success", "none"])
+            .inc(),
+        Err(e) => HTTP_REQUESTS_TOTAL
+            .with_label_values(&["chat", "error", e.error_type()])
+            .inc(),
     }
-    
+
     result
 }
 
@@ -276,7 +287,13 @@ async fn handle_streaming_request(
                                         );
 
                                         let _ = tx.send(Ok(ollama_chunk.to_string())).await;
-                                        STREAMING_CHUNKS_TOTAL.with_label_values(&[if is_chat { "chat" } else { "generate" }]).inc();
+                                        STREAMING_CHUNKS_TOTAL
+                                            .with_label_values(&[if is_chat {
+                                                "chat"
+                                            } else {
+                                                "generate"
+                                            }])
+                                            .inc();
                                     }
                                 }
                             }

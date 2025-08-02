@@ -8,7 +8,7 @@ lazy_static! {
     pub static ref HTTP_REQUESTS_TOTAL: CounterVec = register_counter_vec!(
         "mistral_http_requests_total",
         "Total number of HTTP requests",
-        &["endpoint", "status"]
+        &["endpoint", "status", "error_type"]
     )
     .unwrap();
     pub static ref HTTP_REQUEST_DURATION_SECONDS: HistogramVec = register_histogram_vec!(
@@ -51,5 +51,11 @@ lazy_static! {
 pub fn export_metrics() -> String {
     let encoder = TextEncoder::new();
     let metric_families = prometheus::gather();
-    encoder.encode_to_string(&metric_families).unwrap()
+    encoder
+        .encode_to_string(&metric_families)
+        .unwrap_or_else(|e| {
+            tracing::error!("Failed to encode metrics: {}", e);
+            // Return empty metrics in Prometheus format rather than panic
+            "# Failed to encode metrics\n".to_string()
+        })
 }

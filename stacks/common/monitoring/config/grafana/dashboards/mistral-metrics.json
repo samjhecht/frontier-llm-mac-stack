@@ -94,7 +94,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "up{job=\"mistral\"}",
+          "expr": "up{job=\"$job\", instance=~\"$instance\"}",
           "refId": "A"
         }
       ],
@@ -162,7 +162,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "mistral_active_requests",
+          "expr": "mistral_active_requests{job=\"$job\", instance=~\"$instance\"}",
           "refId": "A"
         }
       ],
@@ -222,7 +222,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(mistral_http_requests_total[1h]))",
+          "expr": "sum(increase(mistral_http_requests_total{job=\"$job\", instance=~\"$instance\"}[1h]))",
           "refId": "A"
         }
       ],
@@ -290,7 +290,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(mistral_http_requests_total{status=\"error\"}[5m])) / sum(rate(mistral_http_requests_total[5m]))",
+          "expr": "sum(rate(mistral_http_requests_total{job=\"$job\", instance=~\"$instance\", status=\"error\"}[$rate_interval])) / sum(rate(mistral_http_requests_total{job=\"$job\", instance=~\"$instance\"}[$rate_interval]))",
           "refId": "A"
         }
       ],
@@ -377,7 +377,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (endpoint) (rate(mistral_http_requests_total[5m]))",
+          "expr": "sum by (endpoint) (rate(mistral_http_requests_total{job=\"$job\", instance=~\"$instance\"}[$rate_interval]))",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
         }
@@ -465,7 +465,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.50, sum(rate(mistral_http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+          "expr": "histogram_quantile(0.50, sum(rate(mistral_http_request_duration_seconds_bucket{job=\"$job\", instance=~\"$instance\"}[$rate_interval])) by (le, endpoint))",
           "legendFormat": "p50 {{endpoint}}",
           "refId": "A"
         },
@@ -474,7 +474,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(mistral_http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+          "expr": "histogram_quantile(0.95, sum(rate(mistral_http_request_duration_seconds_bucket{job=\"$job\", instance=~\"$instance\"}[$rate_interval])) by (le, endpoint))",
           "legendFormat": "p95 {{endpoint}}",
           "refId": "B"
         },
@@ -483,7 +483,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.99, sum(rate(mistral_http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+          "expr": "histogram_quantile(0.99, sum(rate(mistral_http_request_duration_seconds_bucket{job=\"$job\", instance=~\"$instance\"}[$rate_interval])) by (le, endpoint))",
           "legendFormat": "p99 {{endpoint}}",
           "refId": "C"
         }
@@ -571,7 +571,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(mistral_generate_duration_seconds_bucket[5m])) by (le, model))",
+          "expr": "histogram_quantile(0.95, sum(rate(mistral_generate_duration_seconds_bucket{job=\"$job\", instance=~\"$instance\"}[$rate_interval])) by (le, model))",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -659,7 +659,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (endpoint) (rate(mistral_streaming_chunks_total[5m]))",
+          "expr": "sum by (endpoint) (rate(mistral_streaming_chunks_total{job=\"$job\", instance=~\"$instance\"}[$rate_interval]))",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
         }
@@ -673,7 +673,94 @@
   "style": "dark",
   "tags": ["mistral", "inference", "llm"],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "mistral",
+          "value": "mistral"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Job",
+        "multi": false,
+        "name": "job",
+        "options": [],
+        "query": {
+          "query": "label_values(up, job)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "mistral",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(mistral_http_requests_total{job=\"$job\"}, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Instance",
+        "multi": false,
+        "name": "instance",
+        "options": [],
+        "query": {
+          "query": "label_values(mistral_http_requests_total{job=\"$job\"}, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "5m",
+          "value": "5m"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Rate Interval",
+        "multi": false,
+        "name": "rate_interval",
+        "options": [
+          {
+            "selected": false,
+            "text": "1m",
+            "value": "1m"
+          },
+          {
+            "selected": true,
+            "text": "5m",
+            "value": "5m"
+          },
+          {
+            "selected": false,
+            "text": "10m",
+            "value": "10m"
+          },
+          {
+            "selected": false,
+            "text": "30m",
+            "value": "30m"
+          }
+        ],
+        "query": "1m,5m,10m,30m",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
   },
   "time": {
     "from": "now-6h",

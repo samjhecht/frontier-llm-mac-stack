@@ -10,6 +10,26 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Check if services are running
+echo "0. Checking if required services are running"
+echo "-------------------------------------------"
+echo -n "Checking Docker services... "
+if docker ps | grep -q "frontier-mistral-ollama-proxy"; then
+    echo -e "${GREEN}✓${NC} Mistral proxy is running"
+else
+    echo -e "${RED}✗${NC} Mistral proxy is not running"
+    echo "Please ensure the Mistral stack is running with: cd stacks/mistral && docker-compose up -d"
+    exit 1
+fi
+
+if docker ps | grep -q "prometheus"; then
+    echo -e "${GREEN}✓${NC} Prometheus is running"
+else
+    echo -e "${YELLOW}⚠${NC} Prometheus is not running, some tests may fail"
+fi
+
+echo ""
+
 # Function to check endpoint
 check_endpoint() {
     local name=$1

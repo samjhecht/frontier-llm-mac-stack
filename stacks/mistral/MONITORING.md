@@ -55,7 +55,7 @@ The Prometheus scrape configuration is located at:
   scrape_timeout: 10s
   honor_labels: true
   static_configs:
-    - targets: ['frontier-mistral:8080']
+    - targets: ['frontier-mistral-ollama-proxy:11434']
       labels:
         engine: 'mistral'
         engine_type: 'inference'
