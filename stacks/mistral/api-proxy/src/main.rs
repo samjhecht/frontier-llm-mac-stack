@@ -2,17 +2,20 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use std::{env, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 use tower_http::{
     cors::{Any, CorsLayer},
     trace::TraceLayer,
 };
 use tracing::info;
 
+mod config;
+mod converters;
 mod error;
 mod handlers;
 mod models;
 
+use config::Config;
 use handlers::chat::{handle_chat, handle_generate, AppState};
 use handlers::models::handle_list_models;
 
@@ -22,21 +25,22 @@ async fn main() {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-    let mistral_url = env::var("MISTRAL_URL").unwrap_or_else(|_| "http://mistral:8080".to_string());
-    let bind_addr = env::var("BIND_ADDRESS").unwrap_or_else(|_| "0.0.0.0:11434".to_string());
+    let config = Config::from_env();
 
     info!("Starting Mistral-Ollama API proxy");
-    info!("Mistral backend: {}", mistral_url);
-    info!("Listening on: {}", bind_addr);
+    info!("Mistral backend: {}", config.mistral_url);
+    info!("Listening on: {}", config.bind_address);
 
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(300))
+        .timeout(config.request_timeout())
         .build()
         .expect("Failed to build HTTP client");
 
     let state = Arc::new(AppState {
         client,
-        mistral_url,
+        mistral_url: config.mistral_url.clone(),
+        channel_buffer_size: config.channel_buffer_size,
+        max_line_length: config.max_line_length,
     });
 
     let cors = CorsLayer::new()
@@ -55,14 +59,14 @@ async fn main() {
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    let addr: SocketAddr = bind_addr.parse().expect("Invalid bind address");
-    
+    let addr: SocketAddr = config.bind_address.parse().expect("Invalid bind address");
+
     info!("Server starting on {}", addr);
-    
+
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .expect("Failed to bind to address");
-    
+
     axum::serve(listener, app)
         .await
         .expect("Server failed to start");
