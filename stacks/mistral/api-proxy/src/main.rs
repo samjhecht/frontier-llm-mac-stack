@@ -13,6 +13,7 @@ mod config;
 mod converters;
 mod error;
 mod handlers;
+mod metrics;
 mod models;
 
 use config::Config;
@@ -54,6 +55,8 @@ async fn main() {
         .route("/api/tags", get(handle_list_models))
         .route("/api/models", get(handle_list_models))
         .route("/api/version", get(handle_version))
+        .route("/api/metrics", get(handle_metrics))
+        .route("/metrics", get(handle_metrics))
         .route("/", get(handle_health))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
@@ -80,4 +83,11 @@ async fn handle_version() -> axum::Json<serde_json::Value> {
     axum::Json(serde_json::json!({
         "version": "0.1.0-mistral-proxy"
     }))
+}
+
+async fn handle_metrics() -> impl axum::response::IntoResponse {
+    use axum::http::{header, StatusCode};
+    
+    let metrics = metrics::export_metrics();
+    (StatusCode::OK, [(header::CONTENT_TYPE, "text/plain")], metrics)
 }

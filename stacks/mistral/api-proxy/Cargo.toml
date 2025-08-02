@@ -20,3 +20,5 @@ bytes = "1.5"
 anyhow = "1.0"
 thiserror = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
+prometheus = { version = "0.13", features = ["process"] }
+lazy_static = "1.4"

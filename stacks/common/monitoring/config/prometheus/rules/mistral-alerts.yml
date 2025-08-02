@@ -1,0 +1,80 @@
+groups:
+  - name: mistral_alerts
+    interval: 30s
+    rules:
+      # High latency alert
+      - alert: MistralHighLatency
+        expr: histogram_quantile(0.95, sum(rate(mistral_http_request_duration_seconds_bucket[5m])) by (le)) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: mistral
+        annotations:
+          summary: "High request latency for Mistral.rs"
+          description: "Mistral.rs p95 latency is {{ $value | humanizeDuration }} (threshold: 5s)"
+
+      # Very high latency alert
+      - alert: MistralVeryHighLatency
+        expr: histogram_quantile(0.95, sum(rate(mistral_http_request_duration_seconds_bucket[5m])) by (le)) > 10
+        for: 2m
+        labels:
+          severity: critical
+          service: mistral
+        annotations:
+          summary: "Very high request latency for Mistral.rs"
+          description: "Mistral.rs p95 latency is {{ $value | humanizeDuration }} (threshold: 10s)"
+
+      # High error rate alert
+      - alert: MistralHighErrorRate
+        expr: sum(rate(mistral_http_requests_total{status="error"}[5m])) / sum(rate(mistral_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: mistral
+        annotations:
+          summary: "High error rate for Mistral.rs"
+          description: "Mistral.rs error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+      # Service down alert
+      - alert: MistralDown
+        expr: up{job="mistral"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: mistral
+        annotations:
+          summary: "Mistral.rs service is down"
+          description: "Mistral.rs has been down for more than 1 minute"
+
+      # High number of active requests
+      - alert: MistralHighActiveRequests
+        expr: mistral_active_requests > 50
+        for: 5m
+        labels:
+          severity: warning
+          service: mistral
+        annotations:
+          summary: "High number of active requests in Mistral.rs"
+          description: "Mistral.rs has {{ $value }} active requests (threshold: 50)"
+
+      # Slow generation alert
+      - alert: MistralSlowGeneration
+        expr: histogram_quantile(0.95, sum(rate(mistral_generate_duration_seconds_bucket[5m])) by (le, model)) > 30
+        for: 5m
+        labels:
+          severity: warning
+          service: mistral
+        annotations:
+          summary: "Slow text generation in Mistral.rs"
+          description: "Model {{ $labels.model }} p95 generation time is {{ $value | humanizeDuration }} (threshold: 30s)"
+
+      # No requests received (possible networking issue)
+      - alert: MistralNoRequests
+        expr: sum(rate(mistral_http_requests_total[5m])) == 0 and up{job="mistral"} == 1
+        for: 10m
+        labels:
+          severity: warning
+          service: mistral
+        annotations:
+          summary: "No requests received by Mistral.rs"
+          description: "Mistral.rs is up but has not received any requests in the last 10 minutes"
