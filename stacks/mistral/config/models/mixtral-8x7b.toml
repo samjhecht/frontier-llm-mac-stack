@@ -1,0 +1,67 @@
+# Mixtral 8x7B Instruct Configuration
+
+[model]
+id = "mixtral:8x7b"
+path = "mixtral-8x7b-instruct-v0.1.gguf"
+architecture = "mixtral"
+size = "8x7B"
+quantization = "q4_k_m"
+context_length = 32768
+supports_functions = true
+
+[inference]
+temperature = 0.7
+top_p = 0.95
+top_k = 50
+repeat_penalty = 1.1
+max_tokens = 4096
+threads = 0
+batch_size = 256  # Smaller batch size for MoE model
+use_gpu = true
+gpu_layers = -1
+
+[prompt]
+# Mixtral uses same format as Mistral
+system_template = "<s>[INST] {system_message}\n\n"
+user_template = "{user_message} [/INST]"
+assistant_template = "{assistant_message}</s>"
+eos_token = "</s>"
+bos_token = "<s>"
+
+[lora]
+enabled = true
+adapter_path = ""
+scale = 1.0
+
+[memory]
+max_model_memory = 0
+max_cache_memory = 0
+use_mmap = true
+lock_memory = false
+
+[performance]
+continuous_batching = true
+flash_attention = true
+tensor_parallel = false
+tensor_parallel_size = 1
+
+# Mixture of Experts specific settings
+[moe]
+# Number of experts to activate per token
+num_experts_per_token = 2
+
+# Total number of experts
+total_experts = 8
+
+# Expert routing method
+routing_method = "top_k"
+
+# Load balancing factor
+load_balancing_loss_weight = 0.01
+
+[logging]
+level = "info"
+log_stats = true
+log_prompts = false
+# Log expert routing decisions
+log_expert_routing = false

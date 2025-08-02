@@ -1,0 +1,68 @@
+# Qwen 2.5 Coder 32B Configuration
+
+[model]
+id = "qwen2.5-coder:32b"
+path = "qwen2.5-coder-32b-instruct.gguf"
+architecture = "qwen"
+size = "32B"
+quantization = "q4_k_m"
+context_length = 131072
+supports_functions = true
+
+[inference]
+temperature = 0.3  # Lower temperature for code generation
+top_p = 0.9
+top_k = 40
+repeat_penalty = 1.05
+max_tokens = 4096
+threads = 0
+batch_size = 512
+use_gpu = true
+gpu_layers = -1
+
+[prompt]
+# Qwen chat format
+system_template = "<|im_start|>system\n{system_message}<|im_end|>\n"
+user_template = "<|im_start|>user\n{user_message}<|im_end|>\n"
+assistant_template = "<|im_start|>assistant\n{assistant_message}<|im_end|>"
+eos_token = "<|im_end|>"
+bos_token = "<|im_start|>"
+
+[lora]
+enabled = true
+adapter_path = ""
+scale = 1.0
+
+[memory]
+max_model_memory = 0
+max_cache_memory = 0
+use_mmap = true
+lock_memory = false
+
+[performance]
+continuous_batching = true
+flash_attention = true
+tensor_parallel = false
+tensor_parallel_size = 1
+
+[logging]
+level = "info"
+log_stats = true
+log_prompts = false
+
+# Code-specific settings
+[code]
+# Enable code syntax highlighting in responses
+syntax_highlighting = true
+
+# Supported programming languages
+languages = [
+    "python", "javascript", "typescript", "java", "c", "cpp",
+    "rust", "go", "ruby", "php", "swift", "kotlin", "scala",
+    "haskell", "ocaml", "clojure", "elixir", "julia", "r",
+    "matlab", "fortran", "cobol", "pascal", "ada", "lisp"
+]
+
+# Code completion settings
+completion_max_lines = 100
+completion_stop_sequences = ["\n\n", "```", "# End"]

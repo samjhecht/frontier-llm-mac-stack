@@ -1,0 +1,120 @@
+# Mistral.rs Model Configuration Template
+# Copy this file and rename it to match your model (e.g., mistral-7b.toml)
+
+[model]
+# Model identifier used in API requests
+id = "model-name:tag"
+
+# Path to the model file (relative to MISTRAL_MODELS_PATH or absolute)
+path = "model-file.gguf"
+
+# Model architecture type
+# Options: "mistral", "llama", "qwen", "deepseek", "mixtral"
+architecture = "mistral"
+
+# Model size for memory estimation
+# Examples: "7B", "13B", "70B", "8x7B"
+size = "7B"
+
+# Quantization level
+# Options: "q4_0", "q4_k_m", "q5_0", "q5_k_m", "q8_0", "f16", "f32"
+quantization = "q8_0"
+
+# Model context window size
+context_length = 32768
+
+# Whether this model supports function calling
+supports_functions = false
+
+[inference]
+# Temperature for sampling (0.0 - 2.0)
+temperature = 0.7
+
+# Top-p nucleus sampling (0.0 - 1.0)
+top_p = 0.95
+
+# Top-k sampling (0 = disabled)
+top_k = 40
+
+# Repetition penalty (1.0 = no penalty)
+repeat_penalty = 1.1
+
+# Maximum tokens to generate
+max_tokens = 2048
+
+# Number of threads to use (0 = auto)
+threads = 0
+
+# Batch size for processing
+batch_size = 512
+
+# Whether to use GPU acceleration
+use_gpu = true
+
+# GPU layers to offload (0 = CPU only, -1 = all layers)
+gpu_layers = -1
+
+[prompt]
+# System prompt template
+system_template = "<|im_start|>system\n{system_message}<|im_end|>\n"
+
+# User message template
+user_template = "<|im_start|>user\n{user_message}<|im_end|>\n"
+
+# Assistant message template
+assistant_template = "<|im_start|>assistant\n{assistant_message}<|im_end|>\n"
+
+# End of sequence token
+eos_token = "<|im_end|>"
+
+# Beginning of sequence token
+bos_token = "<|im_start|>"
+
+[lora]
+# Whether LoRA adapters are supported
+enabled = false
+
+# Path to LoRA adapter file (if enabled)
+adapter_path = ""
+
+# LoRA scaling factor
+scale = 1.0
+
+[memory]
+# Memory usage limits
+# Maximum memory for model weights (in GB, 0 = unlimited)
+max_model_memory = 0
+
+# Maximum memory for KV cache (in GB, 0 = unlimited)
+max_cache_memory = 0
+
+# Enable memory mapping for model loading
+use_mmap = true
+
+# Enable memory locking to prevent swapping
+lock_memory = false
+
+[performance]
+# Performance tuning options
+# Enable continuous batching
+continuous_batching = true
+
+# Enable flash attention (if supported)
+flash_attention = true
+
+# Enable tensor parallelism
+tensor_parallel = false
+
+# Number of tensor parallel ranks
+tensor_parallel_size = 1
+
+[logging]
+# Logging configuration
+# Log level: "error", "warn", "info", "debug", "trace"
+level = "info"
+
+# Log inference statistics
+log_stats = true
+
+# Log prompt tokens
+log_prompts = false
