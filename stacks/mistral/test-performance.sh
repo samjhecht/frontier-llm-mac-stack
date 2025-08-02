@@ -17,6 +17,35 @@ print_warning() { echo -e "${YELLOW}⚠${NC} $1"; }
 print_error() { echo -e "${RED}✗${NC} $1"; }
 print_info() { echo -e "ℹ $1"; }
 
+# Check required commands
+check_commands() {
+    local missing_commands=()
+    
+    if ! command -v bc &> /dev/null; then
+        missing_commands+=("bc")
+    fi
+    
+    if ! command -v docker &> /dev/null; then
+        missing_commands+=("docker")
+    fi
+    
+    if [ ${#missing_commands[@]} -gt 0 ]; then
+        print_error "Missing required commands: ${missing_commands[*]}"
+        print_info "Please install missing commands:"
+        for cmd in "${missing_commands[@]}"; do
+            case "$cmd" in
+                bc)
+                    print_info "  brew install bc"
+                    ;;
+                docker)
+                    print_info "  Download Docker Desktop from https://www.docker.com/products/docker-desktop"
+                    ;;
+            esac
+        done
+        exit 1
+    fi
+}
+
 # Check if .env exists
 check_env_file() {
     print_info "Checking environment configuration..."
@@ -78,9 +107,19 @@ test_config_loading() {
     
     # Check TOML syntax
     if command -v python3 &> /dev/null; then
-        python3 -c "import tomli; tomli.load(open('$SCRIPT_DIR/config/mistral/config.toml', 'rb'))" 2>/dev/null && \
-            print_success "config.toml syntax valid" || \
-            print_error "config.toml has syntax errors"
+        # Try with tomli first (Python < 3.11)
+        if python3 -c "import tomli" 2>/dev/null; then
+            python3 -c "import tomli; tomli.load(open('$SCRIPT_DIR/config/mistral/config.toml', 'rb'))" 2>/dev/null && \
+                print_success "config.toml syntax valid" || \
+                print_error "config.toml has syntax errors"
+        # Try with tomllib (Python >= 3.11)
+        elif python3 -c "import tomllib" 2>/dev/null; then
+            python3 -c "import tomllib; tomllib.load(open('$SCRIPT_DIR/config/mistral/config.toml', 'rb'))" 2>/dev/null && \
+                print_success "config.toml syntax valid" || \
+                print_error "config.toml has syntax errors"
+        else
+            print_warning "TOML validation skipped (install: pip install tomli)"
+        fi
     else
         print_warning "Python not available, skipping TOML validation"
     fi
@@ -190,6 +229,8 @@ main() {
     echo "Mistral Performance Configuration Test"
     echo "====================================="
     echo ""
+    
+    check_commands
     
     check_env_file
     echo ""

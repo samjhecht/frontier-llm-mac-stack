@@ -91,13 +91,14 @@ MISTRAL_QUANTIZATION_CACHE_SIZE=1073741824  # 1GB quantization cache
 Recommended Docker memory limits based on model size:
 
 | Model Size | Memory Limit | Memory Reservation |
-|------------|-------------|--------------------|
-| 7B params  | 16G         | 8G                 |
-| 13B params | 32G         | 16G                |
-| 30B params | 64G         | 32G                |
-| 70B params | 128G        | 64G                |
+| ---------- | ------------ | ------------------ |
+| 7B params  | 16G          | 8G                 |
+| 13B params | 32G          | 16G                |
+| 30B params | 64G          | 32G                |
+| 70B params | 128G         | 64G                |
 
 Update in `.env`:
+
 ```bash
 MISTRAL_MEMORY_LIMIT=64G
 MISTRAL_MEMORY_RESERVATION=32G
@@ -140,12 +141,12 @@ MISTRAL_ENABLE_PREFIX_CACHING=true     # Cache common prefixes
 
 Choose quantization based on quality/performance trade-off:
 
-| Quantization | Quality | Speed | Memory Usage |
-|--------------|---------|-------|--------------|
-| f16          | Best    | Slow  | High         |
-| q8_0         | Great   | Good  | Medium       |
-| q5_k_m       | Good    | Fast  | Low          |
-| q4_k_m       | OK      | Fastest| Lowest       |
+| Quantization | Quality | Speed   | Memory Usage |
+| ------------ | ------- | ------- | ------------ |
+| f16          | Best    | Slow    | High         |
+| q8_0         | Great   | Good    | Medium       |
+| q5_k_m       | Good    | Fast    | Low          |
+| q4_k_m       | OK      | Fastest | Lowest       |
 
 ```bash
 MISTRAL_DEFAULT_QUANTIZATION=q5_k_m
@@ -191,7 +192,7 @@ Key metrics to monitor:
 Expected performance on Mac Studio:
 
 | Hardware | Model Size | Quantization | Tokens/sec |
-|----------|------------|--------------|------------|
+| -------- | ---------- | ------------ | ---------- |
 | M2 Max   | 7B         | q5_k_m       | 80-120     |
 | M2 Ultra | 7B         | q5_k_m       | 150-200    |
 | M2 Ultra | 13B        | q5_k_m       | 80-120     |

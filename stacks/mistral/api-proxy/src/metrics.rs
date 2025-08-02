@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
 use prometheus::{
-    register_counter_vec, register_gauge_vec, register_histogram_vec, register_int_gauge, 
+    register_counter_vec, register_gauge_vec, register_histogram_vec, register_int_gauge,
     CounterVec, GaugeVec, HistogramVec, IntGauge, TextEncoder,
 };
 
@@ -46,7 +46,7 @@ lazy_static! {
         &["endpoint"]
     )
     .unwrap();
-    
+
     // Metal-specific performance metrics
     pub static ref METAL_MEMORY_USAGE_BYTES: GaugeVec = register_gauge_vec!(
         "mistral_metal_memory_usage_bytes",
@@ -86,7 +86,12 @@ pub fn export_metrics() -> String {
         .encode_to_string(&metric_families)
         .unwrap_or_else(|e| {
             tracing::error!("Failed to encode metrics: {}", e);
-            // Return empty metrics in Prometheus format rather than panic
-            "# Failed to encode metrics\n".to_string()
+            // Return error metric in Prometheus format
+            format!(
+                "# HELP mistral_metrics_export_error Error exporting metrics\n\
+                 # TYPE mistral_metrics_export_error counter\n\
+                 mistral_metrics_export_error{{error=\"{}\"}} 1\n",
+                e.to_string().replace('"', "'").replace('\n', " ")
+            )
         })
 }

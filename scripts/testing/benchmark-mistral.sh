@@ -57,6 +57,55 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Check required commands
+check_commands() {
+    local missing_commands=()
+    
+    if ! command -v bc &> /dev/null; then
+        missing_commands+=("bc")
+    fi
+    
+    if ! command -v curl &> /dev/null; then
+        missing_commands+=("curl")
+    fi
+    
+    if ! command -v jq &> /dev/null; then
+        missing_commands+=("jq")
+    fi
+    
+    if [ ${#missing_commands[@]} -gt 0 ]; then
+        print_error "Missing required commands: ${missing_commands[*]}"
+        print_info "Please install missing commands:"
+        for cmd in "${missing_commands[@]}"; do
+            case "$cmd" in
+                bc)
+                    print_info "  brew install bc"
+                    ;;
+                jq)
+                    print_info "  brew install jq"
+                    ;;
+                curl)
+                    print_info "  curl should be pre-installed on macOS"
+                    ;;
+            esac
+        done
+        exit 1
+    fi
+}
+
+# Validate and sanitize TEST_MODEL
+validate_model() {
+    # Remove any shell metacharacters from TEST_MODEL
+    TEST_MODEL=$(echo "$TEST_MODEL" | tr -d ';&|<>()$`\\\"')
+    
+    # Validate model name format (alphanumeric, dash, underscore only)
+    if ! [[ "$TEST_MODEL" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        print_error "Invalid model name: $TEST_MODEL"
+        print_info "Model name must contain only alphanumeric characters, dashes, and underscores"
+        exit 1
+    fi
+}
+
 # Check if services are running
 check_services() {
     print_info "Checking services..."
@@ -159,31 +208,46 @@ benchmark_streaming() {
     print_info "Testing streaming performance..."
     
     local start_time=$(date +%s.%N)
-    local chunk_count=0
-    local first_chunk_time=""
+    local temp_file=$(mktemp)
     
+    # Stream response and save timing data
     curl -s -X POST "${MISTRAL_URL}/v1/chat/completions" \
         -H "Content-Type: application/json" \
         -d "{
             \"model\": \"${TEST_MODEL}\",
             \"messages\": [{\"role\": \"user\", \"content\": \"${prompt}\"}],
             \"stream\": true
-        }" | while IFS= read -r line; do
-        if [ -z "$first_chunk_time" ]; then
-            first_chunk_time=$(date +%s.%N)
-        fi
-        ((chunk_count++))
-    done
+        }" | {
+        local chunk_count=0
+        local first_chunk_time=""
+        
+        while IFS= read -r line; do
+            if [ -z "$first_chunk_time" ]; then
+                first_chunk_time=$(date +%s.%N)
+                echo "$first_chunk_time" > "${temp_file}.first"
+            fi
+            ((chunk_count++))
+        done
+        
+        echo "$chunk_count" > "${temp_file}.count"
+    }
     
     local end_time=$(date +%s.%N)
     local total_time=$(echo "$end_time - $start_time" | bc)
     
-    if [ -n "$first_chunk_time" ]; then
+    # Read results from temp files
+    if [ -f "${temp_file}.first" ]; then
+        local first_chunk_time=$(cat "${temp_file}.first")
+        local chunk_count=$(cat "${temp_file}.count" 2>/dev/null || echo "0")
         local ttfb=$(echo "$first_chunk_time - $start_time" | bc)
+        
         echo "streaming,${ttfb},${total_time},${chunk_count}" >> "$results_file"
         print_success "Time to first byte: ${ttfb}s, Total time: ${total_time}s, Chunks: ${chunk_count}"
+        
+        # Cleanup temp files
+        rm -f "${temp_file}" "${temp_file}.first" "${temp_file}.count"
     else
-        print_warning "Streaming test failed"
+        print_warning "Streaming test failed - no response received"
     fi
     echo ""
 }
@@ -202,15 +266,27 @@ check_memory_usage() {
 
 # Compare with Ollama if available
 compare_with_ollama() {
+    # Check if ollama CLI is available
     if ! command -v ollama &> /dev/null; then
         print_warning "Ollama CLI not found, skipping comparison"
+        print_info "To install: brew install ollama"
+        return
+    fi
+    
+    # Check if mistral model is available in ollama
+    if ! ollama list 2>/dev/null | grep -q "mistral"; then
+        print_warning "Mistral model not found in Ollama, skipping comparison"
+        print_info "To download: ollama pull mistral"
         return
     fi
     
     print_info "Comparing with Ollama performance..."
     
     local ollama_start=$(date +%s.%N)
-    ollama run mistral "What is 2+2?" > /dev/null 2>&1
+    if ! ollama run mistral "What is 2+2?" > /dev/null 2>&1; then
+        print_warning "Failed to run Ollama comparison"
+        return
+    fi
     local ollama_end=$(date +%s.%N)
     local ollama_time=$(echo "$ollama_end - $ollama_start" | bc)
     
@@ -319,6 +395,12 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Check required commands
+check_commands
+
+# Validate model name
+validate_model
 
 # Run the benchmarks
 run_benchmarks
