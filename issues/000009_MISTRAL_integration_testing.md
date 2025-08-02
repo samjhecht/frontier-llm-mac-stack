@@ -34,138 +34,73 @@ We need to ensure that the Mistral.rs implementation provides feature parity wit
 
 ## Implementation Details
 
+The comprehensive integration test suite has been implemented in the `stacks/mistral/tests/` directory with the following components:
+
+### Test Suite Structure
+
+1. **Master Test Runner** (`run-all-tests.sh`)
+   - Orchestrates all test suites
+   - Provides options for verbose output, skipping benchmarks, model selection
+   - Generates comprehensive test reports
+   - Supports CI/CD integration with proper exit codes
+
+2. **Integration Tests** (`integration-test.sh`)
+   - API health and basic functionality
+   - Ollama API compatibility (all endpoints)
+   - OpenAI API compatibility
+   - Error handling and edge cases
+   - Streaming response validation
+
+3. **Aider Advanced Tests** (`test-aider-advanced.sh`)
+   - Basic code generation
+   - Multiple file handling
+   - Context window management
+   - Code refactoring capabilities
+   - Error correction
+   - Documentation generation
+   - Long conversation handling
+
+4. **Monitoring Advanced Tests** (`test-monitoring-advanced.sh`)
+   - Prometheus connectivity and target validation
+   - Mistral metrics collection and accuracy
+   - Grafana dashboard functionality
+   - Alerting rules validation
+   - Performance metrics under load
+
+5. **Performance Benchmark** (`benchmark-comparison.sh`)
+   - Latency benchmarks with different prompt sizes
+   - Throughput testing with concurrent requests
+   - Streaming response time measurements
+   - Memory and resource usage tracking
+   - Optional comparison with Ollama
+
+### Usage Examples
+
 ```bash
-#!/bin/bash
-# stacks/mistral/tests/integration-test.sh
-
-set -e
-
-# Colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-echo "Starting Mistral.rs Integration Tests..."
-
-# Test 1: API Health Check
-test_api_health() {
-    echo -n "Testing API health endpoint... "
-    if curl -f -s http://localhost:8080/health > /dev/null; then
-        echo -e "${GREEN}PASS${NC}"
-        return 0
-    else
-        echo -e "${RED}FAIL${NC}"
-        return 1
-    fi
-}
-
-# Test 2: Ollama Compatibility
-test_ollama_compat() {
-    echo -n "Testing Ollama API compatibility... "
-    response=$(curl -s -X POST http://localhost:11434/api/generate \
-        -H "Content-Type: application/json" \
-        -d '{
-            "model": "qwen2.5-coder:32b",
-            "prompt": "Hello",
-            "stream": false
-        }')
-    
-    if echo "$response" | jq -e '.response' > /dev/null; then
-        echo -e "${GREEN}PASS${NC}"
-        return 0
-    else
-        echo -e "${RED}FAIL${NC}"
-        echo "Response: $response"
-        return 1
-    fi
-}
-
-# Test 3: Aider Connection
-test_aider_connection() {
-    echo -n "Testing Aider connection... "
-    export OLLAMA_API_BASE="http://localhost:11434"
-    
-    if echo "test" | aider --model ollama/qwen2.5-coder:32b --yes --exit > /dev/null 2>&1; then
-        echo -e "${GREEN}PASS${NC}"
-        return 0
-    else
-        echo -e "${RED}FAIL${NC}"
-        return 1
-    fi
-}
-
-# Test 4: Metrics Collection
-test_metrics() {
-    echo -n "Testing Prometheus metrics... "
-    if curl -s http://localhost:9090/metrics | grep -q "mistral_"; then
-        echo -e "${GREEN}PASS${NC}"
-        return 0
-    else
-        echo -e "${RED}FAIL${NC}"
-        return 1
-    fi
-}
-
 # Run all tests
-run_all_tests() {
-    local failed=0
-    
-    test_api_health || ((failed++))
-    test_ollama_compat || ((failed++))
-    test_aider_connection || ((failed++))
-    test_metrics || ((failed++))
-    
-    echo ""
-    if [ $failed -eq 0 ]; then
-        echo -e "${GREEN}All tests passed!${NC}"
-        return 0
-    else
-        echo -e "${RED}$failed tests failed${NC}"
-        return 1
-    fi
-}
+./stacks/mistral/tests/run-all-tests.sh
 
-# Performance benchmark
-run_benchmark() {
-    echo "Running performance benchmark..."
-    
-    # Simple latency test
-    total_time=0
-    iterations=10
-    
-    for i in $(seq 1 $iterations); do
-        start=$(date +%s.%N)
-        curl -s -X POST http://localhost:8080/v1/chat/completions \
-            -H "Content-Type: application/json" \
-            -d '{
-                "model": "qwen2.5-coder:32b",
-                "messages": [{"role": "user", "content": "Hi"}],
-                "max_tokens": 50
-            }' > /dev/null
-        end=$(date +%s.%N)
-        
-        elapsed=$(echo "$end - $start" | bc)
-        total_time=$(echo "$total_time + $elapsed" | bc)
-        echo "Request $i: ${elapsed}s"
-    done
-    
-    avg_time=$(echo "scale=3; $total_time / $iterations" | bc)
-    echo "Average response time: ${avg_time}s"
-}
+# Run specific test suite
+./stacks/mistral/tests/run-all-tests.sh integration
 
-# Main
-case "${1:-test}" in
-    test)
-        run_all_tests
-        ;;
-    benchmark)
-        run_benchmark
-        ;;
-    *)
-        echo "Usage: $0 [test|benchmark]"
-        ;;
-esac
+# Run with verbose output
+./stacks/mistral/tests/run-all-tests.sh -v
+
+# Skip benchmark tests (faster)
+./stacks/mistral/tests/run-all-tests.sh -s
+
+# Run individual test scripts
+./stacks/mistral/tests/integration-test.sh
+./stacks/mistral/tests/test-aider-advanced.sh
+./stacks/mistral/tests/benchmark-comparison.sh --iterations 20
 ```
+
+### Test Results
+
+All test results are saved in `stacks/mistral/tests/results/` with:
+- Detailed execution logs
+- Performance benchmark CSV files
+- Summary reports with timestamps
 
 ## Success Criteria
 - All integration tests pass
@@ -177,3 +112,57 @@ esac
 - ~300 lines of test scripts
 - ~100 lines of benchmark utilities
 - Test documentation
+
+## Proposed Solution
+
+I will implement a comprehensive integration testing suite for the Mistral.rs stack that ensures feature parity with Ollama and validates all component integrations. The solution will be structured as follows:
+
+### 1. Test Suite Organization
+- Create a main integration test script in `stacks/mistral/tests/` directory
+- Modularize tests by functionality (API, Aider, monitoring, performance)
+- Use consistent error handling and reporting across all tests
+- Implement both unit-style tests and end-to-end integration tests
+
+### 2. API Compatibility Test Implementation
+- Extend the existing `test-aider-compatibility.sh` to be more comprehensive
+- Test all Ollama API endpoints that Mistral.rs implements
+- Validate request/response formats match Ollama specifications
+- Test edge cases like malformed requests, missing models, etc.
+- Verify streaming and non-streaming responses work correctly
+
+### 3. Aider Integration Test Enhancement
+- Build upon current Aider test logic
+- Test various Aider commands and workflows
+- Verify code generation, editing, and conversation flows
+- Test context window management with large files
+- Validate that Aider configuration works seamlessly
+
+### 4. Monitoring Integration Validation
+- Extend `test-monitoring.sh` with more comprehensive checks
+- Verify all Mistral.rs metrics are properly exposed
+- Test Prometheus scraping and alerting rules
+- Validate Grafana dashboard data population
+- Check resource usage metrics accuracy
+
+### 5. Performance Benchmarking Suite
+- Create a dedicated benchmark script for performance comparisons
+- Test request latency under various loads
+- Measure throughput (requests per second)
+- Compare memory usage between Mistral.rs and Ollama
+- Test with different model sizes and configurations
+- Generate performance reports with clear comparisons
+
+### 6. Test Automation and CI Integration
+- Create a master test runner that executes all test suites
+- Implement proper exit codes for CI/CD integration
+- Add test result logging and reporting
+- Create documentation for running tests locally and in CI
+
+### 7. Implementation Steps
+1. Create the test directory structure
+2. Refactor and enhance existing test scripts
+3. Implement new test modules for untested functionality
+4. Create the performance benchmarking framework
+5. Develop the master test runner
+6. Document test usage and interpretation
+7. Validate all tests pass in the current environment
