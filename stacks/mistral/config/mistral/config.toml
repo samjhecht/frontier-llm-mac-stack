@@ -7,16 +7,53 @@ port = 8080
 [model]
 path = "/models"
 default_model = "mistral-7b-instruct"
+model_type = "auto"  # auto, plain, gguf, lora, x-lora, toml
+cache_size = 2147483648  # 2GB model cache
 
 [inference]
 max_batch_size = 8
-max_sequence_length = 4096
+max_sequence_length = 32768
 temperature = 0.7
+max_running_requests = 16
+max_total_tokens = 131072
+enable_continuous_batching = true
+enable_prefix_caching = true
+prefix_cache_size = 2147483648  # 2GB
 
 [logging]
 level = "info"
 format = "json"
 
 [resources]
-num_threads = 8
+num_threads = 0  # 0 = auto-detect
 use_gpu = true
+device = "metal"
+memory_fraction = 0.9
+
+[metal]
+device_id = 0
+heap_size = 68719476736  # 64GB for Mac Studio Ultra
+command_buffer_size = 1073741824  # 1GB
+use_flash_attention = true
+shader_variant = "optimized"
+simd_reduction = true
+async_dispatch = true
+command_queue_size = 64
+
+[memory]
+enable_memory_pooling = true
+memory_pool_size = 8589934592  # 8GB
+kv_cache_dtype = "f16"
+max_seq_len = 32768
+
+[quantization]
+default_quantization = "q5_k_m"
+dynamic_quantization = true
+cache_size = 1073741824  # 1GB
+
+[performance]
+tensor_parallel_size = 1
+pipeline_parallel_size = 1
+use_graph_capture = true
+prefill_chunk_size = 2048
+decode_chunk_size = 256

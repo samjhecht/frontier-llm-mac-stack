@@ -89,3 +89,36 @@ fn configure_metal_performance() -> Result<(), Error> {
 - ~100 lines of configuration
 - ~200 lines of benchmark scripts
 - Performance documentation
+
+
+## Proposed Solution
+
+Based on my analysis of the Mistral stack, I will implement the following optimizations for Mac Studio:
+
+### 1. Enhanced Environment Configuration
+- Update `.env.example` with comprehensive Metal-specific settings
+- Add performance tuning parameters for Mac Studio Ultra chips
+- Include memory management optimizations
+
+### 2. Metal Acceleration Configuration
+- Add Metal-specific environment variables to docker-compose.yml
+- Create a Mac Studio optimized build configuration
+- Implement Metal device detection and configuration
+
+### 3. Performance Monitoring Integration
+- Add Metal-specific metrics to the monitoring stack
+- Create performance benchmarking scripts
+- Integrate with existing Prometheus/Grafana setup
+
+### 4. Testing and Validation
+- Create a comprehensive performance testing suite
+- Implement latency and throughput benchmarks
+- Compare performance with baseline Ollama configuration
+
+### Implementation Steps:
+1. Enhance `.env.example` with full Metal/performance configuration
+2. Update `docker-compose.yml` to support new environment variables
+3. Create `scripts/testing/benchmark-mistral.sh` for performance testing
+4. Add Metal-specific configuration to `config/mistral/config.toml`
+5. Create `docs/performance-tuning.md` with optimization guidelines
+6. Update existing monitoring to track Metal-specific metrics

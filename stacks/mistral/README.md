@@ -129,6 +129,54 @@ The proxy can be configured via environment variables in `.env`:
 - `OLLAMA_API_PORT`: Port for Ollama API compatibility (default: 11434)
 - `PROXY_LOG_LEVEL`: Log level for the proxy (default: info)
 
+## Performance Optimization
+
+### Mac Studio Optimization
+
+The Mistral stack includes comprehensive performance optimizations for Mac Studio hardware:
+
+1. **Metal Acceleration**: Automatic detection and configuration of Metal GPU acceleration
+2. **Memory Management**: Optimized memory pooling and caching for large models
+3. **Inference Optimization**: Flash attention, continuous batching, and prefix caching
+4. **Quantization**: Dynamic quantization support for optimal quality/performance balance
+
+### Quick Performance Setup
+
+1. Test your configuration:
+   ```bash
+   ./test-performance.sh
+   ```
+
+2. Run performance benchmarks:
+   ```bash
+   ../../scripts/testing/benchmark-mistral.sh
+   ```
+
+3. View detailed tuning guide:
+   ```bash
+   cat ../../docs/performance-tuning.md
+   ```
+
+### Key Performance Settings
+
+For Mac Studio Ultra (recommended settings in `.env`):
+
+```bash
+# Metal Acceleration
+MISTRAL_DEVICE=metal
+MISTRAL_USE_FLASH_ATTENTION=true
+MISTRAL_METAL_HEAP_SIZE=68719476736  # 64GB
+
+# Memory Optimization
+MISTRAL_MEMORY_FRACTION=0.9
+MISTRAL_ENABLE_MEMORY_POOLING=true
+MISTRAL_MAX_SEQ_LEN=32768
+
+# Performance Tuning
+MISTRAL_ENABLE_CONTINUOUS_BATCHING=true
+MISTRAL_DEFAULT_QUANTIZATION=q5_k_m
+```
+
 ## Troubleshooting
 
 ### Common Issues
