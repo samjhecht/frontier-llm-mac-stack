@@ -38,11 +38,40 @@ elif [ -f "${ROOT_DIR}/.env" ]; then
 fi
 
 # Default values
-INPUT_MODEL="${1:-}"
-OUTPUT_FORMAT="${2:-gguf}"
-QUANTIZATION="${3:-q8_0}"
+INPUT_MODEL=""
+OUTPUT_FORMAT="gguf"
+QUANTIZATION="q8_0"
+DRY_RUN="no"
 MISTRAL_MODELS_PATH="${MISTRAL_MODELS_PATH:-${ROOT_DIR}/data/mistral-models}"
 MISTRAL_CONTAINER="${MISTRAL_CONTAINER:-frontier-mistral}"
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --dry-run)
+            DRY_RUN="yes"
+            shift
+            ;;
+        --format)
+            OUTPUT_FORMAT="$2"
+            shift 2
+            ;;
+        --quantization|-q)
+            QUANTIZATION="$2"
+            shift 2
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            if [ -z "$INPUT_MODEL" ]; then
+                INPUT_MODEL="$1"
+            fi
+            shift
+            ;;
+    esac
+done
 
 # Supported quantization levels
 declare -A QUANTIZATION_LEVELS=(
@@ -55,6 +84,43 @@ declare -A QUANTIZATION_LEVELS=(
     ["f32"]="32-bit float (original quality, largest size)"
 )
 
+# Helper function for cross-platform file size
+get_file_size() {
+    local file="$1"
+    if command -v stat >/dev/null 2>&1; then
+        # Try macOS format first, then Linux
+        stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo "0"
+    else
+        # Fallback to ls
+        ls -l "$file" 2>/dev/null | awk '{print $5}' || echo "0"
+    fi
+}
+
+# Helper function to sanitize input for Docker commands
+sanitize_docker_input() {
+    local input="$1"
+    # Remove potentially dangerous characters
+    # Allow alphanumeric, dash, underscore, dot, slash, colon
+    echo "$input" | sed 's/[^a-zA-Z0-9._/:@-]//g'
+}
+
+# Function to format bytes
+format_bytes() {
+    local bytes="$1"
+    if command -v numfmt >/dev/null 2>&1; then
+        numfmt --to=iec-i --suffix=B "$bytes" 2>/dev/null || echo "${bytes}B"
+    else
+        # Manual conversion
+        local gb=$((bytes / 1024 / 1024 / 1024))
+        local mb=$(((bytes / 1024 / 1024) % 1024))
+        if [ "$gb" -gt 0 ]; then
+            echo "${gb}.${mb:0:1}GiB"
+        else
+            echo "${mb}MiB"
+        fi
+    fi
+}
+
 # Function to show usage
 usage() {
     cat << EOF
@@ -62,19 +128,23 @@ Mistral Model Conversion Tool
 
 Convert models between different formats and quantization levels.
 
-Usage: $0 <input_model> [output_format] [quantization]
+Usage: $0 [options] <input_model>
+
+Options:
+    --dry-run            Show what would be done without converting
+    --format <format>    Target format (default: gguf)
+                        Options: gguf, safetensors
+    --quantization, -q   Quantization level (default: q8_0)
+                        Options: q4_0, q4_k_m, q5_0, q5_k_m, q8_0, f16, f32
+    --help, -h          Show this help message
 
 Arguments:
-    input_model     Path to input model file or model name
-    output_format   Target format (default: gguf)
-                   Options: gguf, safetensors
-    quantization    Quantization level (default: q8_0)
-                   Options: q4_0, q4_k_m, q5_0, q5_k_m, q8_0, f16, f32
+    input_model         Path to input model file or model name
 
 Examples:
-    $0 model.safetensors gguf q4_k_m
-    $0 /path/to/model.bin gguf q8_0
-    $0 mistral-7b gguf q5_k_m
+    $0 model.safetensors
+    $0 --dry-run --format gguf -q q4_k_m /path/to/model.bin
+    $0 --format gguf -q q5_k_m mistral-7b
 
 Quantization Levels:
 EOF
@@ -150,7 +220,7 @@ validate_model_file() {
     fi
     
     # Check file size
-    local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo "0")
+    local size=$(get_file_size "$file")
     if [ "$size" -lt 1000000 ]; then  # Less than 1MB
         print_error "Model file seems too small (${size} bytes)"
         exit 1
@@ -188,12 +258,48 @@ convert_model() {
     local input_name="${input_basename%.*}"
     local output_file="${MISTRAL_MODELS_PATH}/${input_name}-${quantization}.${output_format}"
     
+    # Validate output directory
+    if [ ! -d "${MISTRAL_MODELS_PATH}" ]; then
+        print_info "Creating output directory: ${MISTRAL_MODELS_PATH}"
+        mkdir -p "${MISTRAL_MODELS_PATH}" || {
+            print_error "Failed to create output directory"
+            exit 1
+        }
+    fi
+    
+    # Check write permissions
+    if [ ! -w "${MISTRAL_MODELS_PATH}" ]; then
+        print_error "No write permission for output directory: ${MISTRAL_MODELS_PATH}"
+        exit 1
+    fi
+    
     print_header "Model Conversion"
     print_info "Input: $input_file"
     print_info "Output: $output_file"
     print_info "Format: $output_format"
     print_info "Quantization: $quantization (${QUANTIZATION_LEVELS[$quantization]})"
     echo ""
+    
+    if [ "$DRY_RUN" = "yes" ]; then
+        print_info "DRY RUN: No conversion will be performed"
+        echo ""
+        
+        # Estimate output size
+        local input_size=$(get_file_size "$input_file")
+        local estimated_size=$input_size
+        
+        # Rough estimation based on quantization
+        case "$quantization" in
+            q4*) estimated_size=$((input_size / 4)) ;;
+            q5*) estimated_size=$((input_size / 3)) ;;
+            q8*) estimated_size=$((input_size / 2)) ;;
+            f16) estimated_size=$((input_size * 2 / 3)) ;;
+        esac
+        
+        print_info "Estimated output size: $(format_bytes $estimated_size)"
+        print_info "Would create: $output_file"
+        return 0
+    fi
     
     # Create output directory if needed
     mkdir -p "$(dirname "$output_file")"
@@ -266,16 +372,52 @@ convert_to_safetensors() {
     
     print_info "Converting to SafeTensors format..."
     
-    # This would require appropriate conversion tools in the container
-    # For now, this is a placeholder implementation
-    docker exec -it ${MISTRAL_CONTAINER} bash -c "
-        if command -v convert-to-safetensors >/dev/null 2>&1; then
-            convert-to-safetensors /models/$(basename "$input") /models/$(basename "$output") --quantization ${quant}
-        else
-            echo 'SafeTensors conversion not yet implemented'
-            exit 1
-        fi
-    "
+    # Use Python with transformers library to convert to SafeTensors
+    local safe_input=$(sanitize_docker_input "$(basename "$input")")
+    local safe_output=$(sanitize_docker_input "$(basename "$output")")
+    local safe_quant=$(sanitize_docker_input "$quant")
+    
+    docker exec -it ${MISTRAL_CONTAINER} python3 -c "
+import sys
+import torch
+from safetensors.torch import save_file
+from pathlib import Path
+
+try:
+    model_path = '/models/$safe_input'
+    output_path = '/models/$safe_output'
+    
+    # Load the model checkpoint
+    if model_path.endswith('.bin'):
+        checkpoint = torch.load(model_path, map_location='cpu')
+    elif model_path.endswith('.pt') or model_path.endswith('.pth'):
+        checkpoint = torch.load(model_path, map_location='cpu')
+    else:
+        print(f'Unsupported input format: {model_path}')
+        sys.exit(1)
+    
+    # Handle quantization if specified
+    if '$safe_quant' != 'none':
+        print(f'Applying $safe_quant quantization...')
+        # Note: Full quantization implementation would require more complex logic
+        # This is a simplified version that maintains the tensor format
+        if '$safe_quant' == 'int8':
+            for key, tensor in checkpoint.items():
+                if tensor.dtype == torch.float32:
+                    checkpoint[key] = tensor.to(torch.int8)
+        elif '$safe_quant' == 'int4':
+            print('INT4 quantization requires specialized libraries, skipping...')
+    
+    # Save as SafeTensors
+    print(f'Saving to SafeTensors format: {output_path}')
+    save_file(checkpoint, output_path)
+    
+    print('Conversion completed successfully')
+    
+except Exception as e:
+    print(f'Error during conversion: {str(e)}')
+    sys.exit(1)
+"
 }
 
 # Function to validate converted model

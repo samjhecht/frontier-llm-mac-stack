@@ -37,6 +37,26 @@ elif [ -f "${ROOT_DIR}/.env" ]; then
     source "${ROOT_DIR}/.env"
 fi
 
+# Helper function for cross-platform file size
+get_file_size() {
+    local file="$1"
+    if command -v stat >/dev/null 2>&1; then
+        # Try macOS format first, then Linux
+        stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo "0"
+    else
+        # Fallback to ls
+        ls -l "$file" 2>/dev/null | awk '{print $5}' || echo "0"
+    fi
+}
+
+# Helper function to sanitize input for Docker commands
+sanitize_docker_input() {
+    local input="$1"
+    # Remove potentially dangerous characters
+    # Allow alphanumeric, dash, underscore, dot, slash, colon
+    echo "$input" | sed 's/[^a-zA-Z0-9._/:@-]//g'
+}
+
 # Model registry mapping
 declare -A MODEL_REGISTRY=(
     ["qwen2.5-coder:32b"]="Qwen/Qwen2.5-Coder-32B-Instruct"
@@ -129,6 +149,14 @@ download_model() {
     # Validate quantization
     local quant_value=$(validate_quantization "$quantization")
     
+    # Check if model might require authentication
+    if [[ "$hf_model" =~ ^(meta-llama|mistralai)/ ]]; then
+        if [ -z "${HF_TOKEN:-}" ]; then
+            print_warning "Model $hf_model may require authentication"
+            print_info "Set HF_TOKEN environment variable if download fails"
+        fi
+    fi
+    
     print_header "Downloading Model"
     print_info "Model: $model_key -> $hf_model"
     print_info "Quantization: $quantization -> $quant_value"
@@ -155,19 +183,28 @@ download_model() {
     # Try different download approaches based on mistralrs capabilities
     if docker exec ${MISTRAL_CONTAINER} mistralrs-server --help 2>/dev/null | grep -q "download"; then
         # If mistralrs has a download command
+        local safe_hf_model=$(sanitize_docker_input "$hf_model")
+        local safe_quant=$(sanitize_docker_input "$quant_value")
         docker exec -it ${MISTRAL_CONTAINER} mistralrs-server \
             download \
-            --model-id "$hf_model" \
-            --quantization "$quant_value" \
+            --model-id "$safe_hf_model" \
+            --quantization "$safe_quant" \
             --revision main \
             --output-dir /models
     else
         # Fallback: Use HuggingFace CLI if available in container
         print_info "Using HuggingFace CLI for download..."
+        local hf_env=""
+        if [ -n "${HF_TOKEN:-}" ]; then
+            hf_env="HF_TOKEN='${HF_TOKEN}'"
+        fi
+        local safe_hf_model=$(sanitize_docker_input "$hf_model")
+        local safe_model_key=$(sanitize_docker_input "${model_key//:/}")
         docker exec -it ${MISTRAL_CONTAINER} bash -c "
+            $hf_env
             if command -v huggingface-cli >/dev/null 2>&1; then
-                huggingface-cli download $hf_model \
-                    --local-dir /models/${model_key//:/} \
+                huggingface-cli download '$safe_hf_model' \
+                    --local-dir '/models/$safe_model_key' \
                     --local-dir-use-symlinks False
             else
                 echo 'Neither mistralrs download nor huggingface-cli is available'
@@ -187,7 +224,7 @@ download_model() {
     "huggingface_id": "$hf_model",
     "quantization": "$quant_value",
     "download_date": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-    "size_bytes": $(find "${MISTRAL_MODELS_PATH}" -name "${model_key//:/}*" -type f -exec stat -f%z {} + 2>/dev/null | awk '{s+=$1} END {print s}' || echo 0)
+    "size_bytes": $(find "${MISTRAL_MODELS_PATH}" -name "${model_key//:/}*" -type f -print0 | while IFS= read -r -d '' file; do get_file_size "$file"; done | awk '{s+=$1} END {print s}' || echo 0)
 }
 EOF
         

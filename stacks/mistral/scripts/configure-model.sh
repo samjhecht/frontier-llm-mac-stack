@@ -145,19 +145,31 @@ update_mistral_config() {
     # This is a simplified approach - in production you'd use a proper TOML parser
     if grep -q '^\s*default_model\s*=' "$MISTRAL_CONFIG"; then
         # Update existing
-        sed -i.tmp "s/^\\s*default_model\\s*=.*/default_model = \"$model_id\"/" "$MISTRAL_CONFIG"
+        sed -i.tmp "s/^\\s*default_model\\s*=.*/default_model = \"$model_id\"/" "$MISTRAL_CONFIG" || {
+            print_error "Failed to update default_model in config"
+            cp "${MISTRAL_CONFIG}.bak" "$MISTRAL_CONFIG"
+            return 1
+        }
     else
         # Add new entry under [model] section
         awk -v model="default_model = \"$model_id\"" '
             /^\[model\]/ { print; print model; next }
             { print }
-        ' "$MISTRAL_CONFIG" > "${MISTRAL_CONFIG}.new"
+        ' "$MISTRAL_CONFIG" > "${MISTRAL_CONFIG}.new" || {
+            print_error "Failed to add default_model to config"
+            cp "${MISTRAL_CONFIG}.bak" "$MISTRAL_CONFIG"
+            return 1
+        }
         mv "${MISTRAL_CONFIG}.new" "$MISTRAL_CONFIG"
     fi
     
     # Update model path
     if grep -q '^\s*model_path\s*=' "$MISTRAL_CONFIG"; then
-        sed -i.tmp "s|^\\s*model_path\\s*=.*|model_path = \"$model_path\"|" "$MISTRAL_CONFIG"
+        sed -i.tmp "s|^\\s*model_path\\s*=.*|model_path = \"$model_path\"|" "$MISTRAL_CONFIG" || {
+            print_error "Failed to update model_path in config"
+            cp "${MISTRAL_CONFIG}.bak" "$MISTRAL_CONFIG"
+            return 1
+        }
     fi
     
     # Clean up temp files

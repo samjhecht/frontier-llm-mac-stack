@@ -77,7 +77,7 @@ format_bytes() {
         local units=("B" "KiB" "MiB" "GiB" "TiB")
         local unit=0
         local size=$bytes
-        while [ $size -gt 1024 ] && [ $unit -lt 4 ]; do
+        while [ "$size" -gt 1024 ] && [ "$unit" -lt 4 ]; do
             size=$((size / 1024))
             unit=$((unit + 1))
         done
@@ -133,11 +133,20 @@ collect_models() {
         
         if [ -f "$metadata_file" ]; then
             has_metadata="yes"
-            # Extract info from metadata
-            model_key=$(grep -o '"model_key"[[:space:]]*:[[:space:]]*"[^"]*"' "$metadata_file" 2>/dev/null | cut -d'"' -f4 || echo "")
-            hf_id=$(grep -o '"huggingface_id"[[:space:]]*:[[:space:]]*"[^"]*"' "$metadata_file" 2>/dev/null | cut -d'"' -f4 || echo "")
-            if [ -z "$quant" ] || [ "$quant" = "unknown" ]; then
-                quant=$(grep -o '"quantization"[[:space:]]*:[[:space:]]*"[^"]*"' "$metadata_file" 2>/dev/null | cut -d'"' -f4 || echo "unknown")
+            # Try jq first for proper JSON parsing
+            if command -v jq >/dev/null 2>&1; then
+                model_key=$(jq -r '.model_key // empty' "$metadata_file" 2>/dev/null || echo "")
+                hf_id=$(jq -r '.huggingface_id // empty' "$metadata_file" 2>/dev/null || echo "")
+                if [ -z "$quant" ] || [ "$quant" = "unknown" ]; then
+                    quant=$(jq -r '.quantization // "unknown"' "$metadata_file" 2>/dev/null || echo "unknown")
+                fi
+            else
+                # Fallback to grep/cut
+                model_key=$(grep -o '"model_key"[[:space:]]*:[[:space:]]*"[^"]*"' "$metadata_file" 2>/dev/null | cut -d'"' -f4 || echo "")
+                hf_id=$(grep -o '"huggingface_id"[[:space:]]*:[[:space:]]*"[^"]*"' "$metadata_file" 2>/dev/null | cut -d'"' -f4 || echo "")
+                if [ -z "$quant" ] || [ "$quant" = "unknown" ]; then
+                    quant=$(grep -o '"quantization"[[:space:]]*:[[:space:]]*"[^"]*"' "$metadata_file" 2>/dev/null | cut -d'"' -f4 || echo "unknown")
+                fi
             fi
         fi
         

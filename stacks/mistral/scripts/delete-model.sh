@@ -41,10 +41,44 @@ elif [ -f "${ROOT_DIR}/.env" ]; then
     source "${ROOT_DIR}/.env"
 fi
 
+# Helper function to sanitize input for Docker commands
+sanitize_docker_input() {
+    local input="$1"
+    # Remove potentially dangerous characters
+    # Allow alphanumeric, dash, underscore, dot, slash, colon
+    echo "$input" | sed 's/[^a-zA-Z0-9._/:@-]//g'
+}
+
 # Default values
-MODEL_NAME="${1:-}"
-FORCE="${2:-no}"
+MODEL_NAME=""
+FORCE="no"
+DRY_RUN="no"
 MISTRAL_MODELS_PATH="${MISTRAL_MODELS_PATH:-${ROOT_DIR}/data/mistral-models}"
+MISTRAL_CONTAINER="${MISTRAL_CONTAINER:-frontier-mistral}"
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --dry-run)
+            DRY_RUN="yes"
+            shift
+            ;;
+        --force|-f)
+            FORCE="yes"
+            shift
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            if [ -z "$MODEL_NAME" ]; then
+                MODEL_NAME="$1"
+            fi
+            shift
+            ;;
+    esac
+done
 
 # Function to show usage
 usage() {
@@ -53,16 +87,20 @@ Mistral Model Delete Tool
 
 Safely delete downloaded models and their metadata.
 
-Usage: $0 <model> [force]
+Usage: $0 [options] <model>
+
+Options:
+    --dry-run      Show what would be deleted without actually deleting
+    --force, -f    Skip confirmation prompt
+    --help, -h     Show this help message
 
 Arguments:
-    model       Model filename or pattern to delete
-    force       Skip confirmation prompt (yes/no, default: no)
+    model          Model filename or pattern to delete
 
 Examples:
     $0 mistral-7b-instruct-v0.2.Q4_K_M.gguf
-    $0 "mistral-7b*"                           # Delete all matching models
-    $0 qwen2.5-coder:32b yes                   # Force delete without prompt
+    $0 --dry-run "mistral-7b*"                 # Preview what would be deleted
+    $0 --force qwen2.5-coder:32b               # Force delete without prompt
 
 Safety Features:
     - Confirmation prompt before deletion (unless forced)
@@ -123,7 +161,8 @@ check_model_in_use() {
     if docker ps --format '{{.Names}}' | grep -q "mistral"; then
         # Check container logs or process list for model usage
         # This is a simplified check - in production you'd want more robust checking
-        if docker exec frontier-mistral ps aux 2>/dev/null | grep -q "$basename"; then
+        local safe_basename=$(sanitize_docker_input "$basename")
+        if docker exec ${MISTRAL_CONTAINER} ps aux 2>/dev/null | grep -q "$safe_basename"; then
             return 0  # Model is in use
         fi
     fi
@@ -176,7 +215,7 @@ delete_model() {
     echo ""
     
     # Confirmation prompt
-    if [ "$force" != "yes" ]; then
+    if [ "$force" != "yes" ] && [ "$DRY_RUN" != "yes" ]; then
         read -p "Are you sure you want to delete these files? (y/N) " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -185,34 +224,41 @@ delete_model() {
         fi
     fi
     
-    # Perform deletion
-    print_info "Deleting files..."
-    local deleted_count=0
-    local failed_count=0
-    
-    for file in "${files_to_delete[@]}"; do
-        if [ -f "$file" ]; then
-            if rm -f "$file" 2>/dev/null; then
-                ((deleted_count++))
-                echo "  ✓ Deleted: $(basename "$file")"
-            else
-                ((failed_count++))
-                print_error "  ✗ Failed to delete: $(basename "$file")"
-            fi
-        fi
-    done
-    
-    echo ""
-    if [ $failed_count -eq 0 ]; then
-        print_success "Successfully deleted $deleted_count file(s)"
-        print_info "Freed $(format_bytes $total_size) of disk space"
+    if [ "$DRY_RUN" = "yes" ]; then
+        print_info "DRY RUN: No files will be deleted"
+        echo ""
+        print_success "Would delete $file_count file(s)"
+        print_info "Would free $(format_bytes $total_size) of disk space"
     else
-        print_warning "Deleted $deleted_count file(s), failed to delete $failed_count file(s)"
-    fi
-    
-    # Clean up empty directories
-    if [ -d "$MISTRAL_MODELS_PATH" ]; then
-        find "$MISTRAL_MODELS_PATH" -type d -empty -delete 2>/dev/null || true
+        # Perform deletion
+        print_info "Deleting files..."
+        local deleted_count=0
+        local failed_count=0
+        
+        for file in "${files_to_delete[@]}"; do
+            if [ -f "$file" ]; then
+                if rm -f "$file" 2>/dev/null; then
+                    ((deleted_count++))
+                    echo "  ✓ Deleted: $(basename "$file")"
+                else
+                    ((failed_count++))
+                    print_error "  ✗ Failed to delete: $(basename "$file")"
+                fi
+            fi
+        done
+        
+        echo ""
+        if [ $failed_count -eq 0 ]; then
+            print_success "Successfully deleted $deleted_count file(s)"
+            print_info "Freed $(format_bytes $total_size) of disk space"
+        else
+            print_warning "Deleted $deleted_count file(s), failed to delete $failed_count file(s)"
+        fi
+        
+        # Clean up empty directories
+        if [ -d "$MISTRAL_MODELS_PATH" ]; then
+            find "$MISTRAL_MODELS_PATH" -type d -empty -delete 2>/dev/null || true
+        fi
     fi
 }
 

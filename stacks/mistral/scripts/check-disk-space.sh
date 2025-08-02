@@ -73,7 +73,7 @@ format_bytes() {
         # Manual conversion
         local gb=$((bytes / 1024 / 1024 / 1024))
         local mb=$(((bytes / 1024 / 1024) % 1024))
-        if [ $gb -gt 0 ]; then
+        if [ "$gb" -gt 0 ]; then
             echo "${gb}.${mb:0:1}GiB"
         else
             echo "${mb}MiB"
@@ -123,7 +123,7 @@ analyze_models() {
             total_size=$((total_size + size))
             ((model_count++))
             
-            if [ $size -gt $largest_size ]; then
+            if [ "$size" -gt "$largest_size" ]; then
                 largest_size=$size
                 largest_name=$(basename "$file")
             fi
@@ -154,7 +154,7 @@ estimate_requirements() {
     for model in "7B-Q4" "7B-Q8" "13B-Q4" "13B-Q8" "70B-Q4" "Mixtral-Q4"; do
         local size=${MODEL_SIZES[$model]}
         local count=$((available / size))
-        if [ $count -gt 0 ]; then
+        if [ "$count" -gt 0 ]; then
             printf "  - %-12s models: %d\n" "$model" "$count"
         fi
     done
@@ -195,12 +195,12 @@ check_disk_space() {
     echo "Model Storage:"
     printf "  %-20s %d\n" "Number of models:" "$model_count"
     printf "  %-20s %s\n" "Total model size:" "$(format_bytes $model_total)"
-    if [ -n "$largest_name" ] && [ $largest_size -gt 0 ]; then
+    if [ -n "$largest_name" ] && [ "$largest_size" -gt 0 ]; then
         printf "  %-20s %s (%s)\n" "Largest model:" "$largest_name" "$(format_bytes $largest_size)"
     fi
     
     # Calculate model percentage of used space
-    if [ $used -gt 0 ] && [ $model_total -gt 0 ]; then
+    if [ "$used" -gt 0 ] && [ "$model_total" -gt 0 ]; then
         local model_percent=$((model_total * 100 / used))
         printf "  %-20s %d%% of used space\n" "Models usage:" "$model_percent"
     fi
@@ -208,7 +208,7 @@ check_disk_space() {
     echo ""
     
     # Check available space
-    if [ $available -lt $min_free_bytes ]; then
+    if [ "$available" -lt "$min_free_bytes" ]; then
         print_warning "Low disk space warning!"
         print_error "Available space ($(format_bytes $available)) is below minimum requirement ($(format_bytes $min_free_bytes))"
         echo ""

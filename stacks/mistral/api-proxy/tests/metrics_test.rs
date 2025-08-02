@@ -97,11 +97,9 @@ async fn create_test_app() -> axum::Router {
     use tower_http::cors::CorsLayer;
 
     // Import necessary modules from the main crate
-    use mistral_ollama_proxy::{
-        handlers::{
-            chat::{handle_chat, handle_generate, AppState},
-            models::handle_list_models,
-        },
+    use mistral_ollama_proxy::handlers::{
+        chat::{handle_chat, handle_generate, AppState},
+        models::handle_list_models,
     };
 
     // Initialize metrics
