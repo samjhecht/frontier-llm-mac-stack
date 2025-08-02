@@ -5,17 +5,25 @@ This directory contains the Docker Compose configuration for running Mistral.rs 
 ## Quick Start
 
 1. Copy the environment file:
+
    ```bash
    cp .env.example .env
    ```
 
-2. Download a model:
+2. Validate configuration:
+
+   ```bash
+   ./validate-config.sh
+   ```
+
+3. Download a model:
+
    ```bash
    ./download-model.sh list-available
    ./download-model.sh download <model-url>
    ```
 
-3. Start the service:
+4. Start the service:
    ```bash
    ../../scripts/mistral-start.sh
    ```
@@ -48,6 +56,7 @@ The service automatically detects your platform and configures acceleration:
 ### Networks
 
 The Mistral service connects to two networks:
+
 - `frontier-llm-network`: Main network for LLM services
 - `frontier-monitoring`: Monitoring infrastructure network
 
@@ -129,6 +138,71 @@ The proxy can be configured via environment variables in `.env`:
 - `OLLAMA_API_PORT`: Port for Ollama API compatibility (default: 11434)
 - `PROXY_LOG_LEVEL`: Log level for the proxy (default: info)
 
+## Performance Optimization
+
+### Mac Studio Optimization
+
+The Mistral stack includes comprehensive performance optimizations for Mac Studio hardware:
+
+1. **Metal Acceleration**: Automatic detection and configuration of Metal GPU acceleration
+2. **Memory Management**: Optimized memory pooling and caching for large models
+3. **Inference Optimization**: Flash attention, continuous batching, and prefix caching
+4. **Quantization**: Dynamic quantization support for optimal quality/performance balance
+
+### Configuration Validation
+
+Before running Mistral, validate your configuration:
+
+```bash
+./validate-config.sh
+```
+
+This script checks:
+
+- Docker Desktop memory allocation vs. configured limits
+- Metal device ID validity
+- Metal Performance Shaders availability
+- System compatibility
+
+### Quick Performance Setup
+
+1. Test your configuration:
+
+   ```bash
+   ./test-performance.sh
+   ```
+
+2. Run performance benchmarks:
+
+   ```bash
+   ../../scripts/testing/benchmark-mistral.sh
+   ```
+
+3. View detailed tuning guide:
+   ```bash
+   cat ../../docs/performance-tuning.md
+   ```
+
+### Key Performance Settings
+
+For Mac Studio Ultra (recommended settings in `.env`):
+
+```bash
+# Metal Acceleration
+MISTRAL_DEVICE=metal
+MISTRAL_USE_FLASH_ATTENTION=true
+MISTRAL_METAL_HEAP_SIZE=68719476736  # 64GB
+
+# Memory Optimization
+MISTRAL_MEMORY_FRACTION=0.9
+MISTRAL_ENABLE_MEMORY_POOLING=true
+MISTRAL_MAX_SEQ_LEN=32768
+
+# Performance Tuning
+MISTRAL_ENABLE_CONTINUOUS_BATCHING=true
+MISTRAL_DEFAULT_QUANTIZATION=q5_k_m
+```
+
 ## Troubleshooting
 
 ### Common Issues
@@ -153,21 +227,25 @@ The proxy can be configured via environment variables in `.env`:
 ### Debugging Commands
 
 Check logs:
+
 ```bash
 docker logs -f frontier-mistral
 ```
 
 Check resource usage:
+
 ```bash
 docker stats frontier-mistral
 ```
 
 Test the API:
+
 ```bash
 curl http://localhost:8080/v1/models
 ```
 
 Check health status:
+
 ```bash
 curl http://localhost:8080/health
 ```

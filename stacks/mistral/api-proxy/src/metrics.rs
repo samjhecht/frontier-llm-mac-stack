@@ -1,7 +1,7 @@
 use lazy_static::lazy_static;
 use prometheus::{
-    register_counter_vec, register_histogram_vec, register_int_gauge, CounterVec, HistogramVec,
-    IntGauge, TextEncoder,
+    register_counter_vec, register_gauge_vec, register_histogram_vec, register_int_gauge,
+    CounterVec, GaugeVec, HistogramVec, IntGauge, TextEncoder,
 };
 
 lazy_static! {
@@ -46,6 +46,37 @@ lazy_static! {
         &["endpoint"]
     )
     .unwrap();
+
+    // Metal-specific performance metrics
+    pub static ref METAL_MEMORY_USAGE_BYTES: GaugeVec = register_gauge_vec!(
+        "mistral_metal_memory_usage_bytes",
+        "Metal GPU memory usage in bytes",
+        &["device_id", "memory_type"]
+    )
+    .unwrap();
+    pub static ref METAL_COMPUTE_UTILIZATION: GaugeVec = register_gauge_vec!(
+        "mistral_metal_compute_utilization_ratio",
+        "Metal GPU compute utilization (0.0-1.0)",
+        &["device_id"]
+    )
+    .unwrap();
+    pub static ref BATCH_QUEUE_SIZE: IntGauge = register_int_gauge!(
+        "mistral_batch_queue_size",
+        "Number of requests waiting in batch queue"
+    )
+    .unwrap();
+    pub static ref PREFILL_DURATION_SECONDS: HistogramVec = register_histogram_vec!(
+        "mistral_prefill_duration_seconds",
+        "Time spent in prefill phase",
+        &["model", "batch_size"]
+    )
+    .unwrap();
+    pub static ref DECODE_DURATION_SECONDS: HistogramVec = register_histogram_vec!(
+        "mistral_decode_duration_seconds",
+        "Time spent in decode phase per token",
+        &["model", "batch_size"]
+    )
+    .unwrap();
 }
 
 pub fn export_metrics() -> String {
@@ -55,7 +86,12 @@ pub fn export_metrics() -> String {
         .encode_to_string(&metric_families)
         .unwrap_or_else(|e| {
             tracing::error!("Failed to encode metrics: {}", e);
-            // Return empty metrics in Prometheus format rather than panic
-            "# Failed to encode metrics\n".to_string()
+            // Return error metric in Prometheus format
+            format!(
+                "# HELP mistral_metrics_export_error Error exporting metrics\n\
+                 # TYPE mistral_metrics_export_error counter\n\
+                 mistral_metrics_export_error{{error=\"{}\"}} 1\n",
+                e.to_string().replace('"', "'").replace('\n', " ")
+            )
         })
 }
