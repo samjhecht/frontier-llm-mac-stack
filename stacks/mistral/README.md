@@ -78,9 +78,56 @@ Use the included `download-model.sh` script to download compatible models:
 
 ## API Endpoints
 
+### Native Mistral.rs API (OpenAI-compatible)
+
 - Health: `http://localhost:8080/health`
 - Models: `http://localhost:8080/v1/models`
 - Chat Completions: `http://localhost:8080/v1/chat/completions`
+
+### Ollama API Compatibility Layer
+
+The Mistral stack includes an Ollama API compatibility layer for tools expecting Ollama's API format (e.g., Aider). The proxy runs on port 11434 by default.
+
+#### Endpoints
+
+- Health: `http://localhost:11434/`
+- Version: `http://localhost:11434/api/version`
+- List Models: `http://localhost:11434/api/tags`
+- Generate: `http://localhost:11434/api/generate`
+- Chat: `http://localhost:11434/api/chat`
+
+#### Using with Aider
+
+To use Mistral.rs with Aider through the Ollama compatibility layer:
+
+```bash
+export OLLAMA_API_BASE=http://localhost:11434
+aider --model mistral:latest
+```
+
+#### Testing Compatibility
+
+Run the included test script to verify the API compatibility:
+
+```bash
+./test-aider-compatibility.sh
+```
+
+#### Model Name Mapping
+
+The compatibility layer automatically maps between Ollama and Mistral.rs model names:
+
+- `mistral:latest` → `mistral-7b`
+- `mistral:7b` → `mistral-7b`
+- `mixtral:latest` → `mixtral-8x7b`
+- `mixtral:8x7b` → `mixtral-8x7b`
+
+#### Configuration
+
+The proxy can be configured via environment variables in `.env`:
+
+- `OLLAMA_API_PORT`: Port for Ollama API compatibility (default: 11434)
+- `PROXY_LOG_LEVEL`: Log level for the proxy (default: info)
 
 ## Troubleshooting
 

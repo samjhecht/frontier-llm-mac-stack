@@ -88,3 +88,46 @@ async fn translate_completion(
 - ~300 lines of Rust proxy code
 - ~50 lines of Nginx configuration updates
 - API documentation
+
+## Proposed Solution
+
+### 1. Directory Structure
+Create a new `api-proxy` directory within the mistral stack:
+```
+stacks/mistral/api-proxy/
+├── Cargo.toml
+├── src/
+│   ├── main.rs
+│   ├── handlers/
+│   │   ├── mod.rs
+│   │   ├── chat.rs
+│   │   └── models.rs
+│   ├── models/
+│   │   ├── mod.rs
+│   │   ├── ollama.rs
+│   │   └── mistral.rs
+│   └── error.rs
+└── Dockerfile
+```
+
+### 2. API Mapping Analysis
+Based on Ollama's API and Mistral.rs documentation:
+- Ollama uses `/api/generate` for non-chat completions
+- Ollama uses `/api/chat` for chat completions
+- Mistral.rs uses OpenAI-compatible `/v1/chat/completions`
+- Both support streaming via Server-Sent Events (SSE)
+
+### 3. Implementation Steps
+1. Create a Rust-based API proxy using Axum framework
+2. Implement request/response translation between Ollama and Mistral.rs formats
+3. Handle both synchronous and streaming responses
+4. Add proper error handling and logging
+5. Create Docker container for the proxy service
+6. Update Nginx configuration to route Ollama API paths to the proxy
+7. Update docker-compose to include the new proxy service
+
+### 4. Key Translation Points
+- Convert Ollama's `prompt` field to Mistral's `messages` array
+- Map Ollama's model names to Mistral.rs model identifiers
+- Transform streaming response formats between the two APIs
+- Handle differences in error response structures
