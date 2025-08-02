@@ -1,0 +1,98 @@
+# LoRA Adapter Configuration Template
+# This file configures a LoRA (Low-Rank Adaptation) adapter for fine-tuning
+
+[adapter]
+# Adapter name/identifier
+name = "custom-adapter"
+
+# Base model this adapter was trained on
+base_model = "mistral:7b"
+
+# Path to the adapter weights file
+weights_path = "adapters/custom-adapter.bin"
+
+# LoRA configuration used during training
+[adapter.lora_config]
+# Rank of the LoRA matrices
+r = 16
+
+# LoRA alpha parameter (scaling factor)
+lora_alpha = 32
+
+# LoRA dropout rate
+lora_dropout = 0.05
+
+# Target modules for LoRA adaptation
+target_modules = [
+    "q_proj",
+    "k_proj", 
+    "v_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj"
+]
+
+# Whether to use bias terms
+bias = "none"  # Options: "none", "all", "lora_only"
+
+# Task type this adapter was trained for
+task_type = "CAUSAL_LM"
+
+[adapter.training]
+# Training configuration (for reference)
+# Learning rate used
+learning_rate = 0.0003
+
+# Batch size
+batch_size = 4
+
+# Number of epochs
+num_epochs = 3
+
+# Dataset used for training
+dataset = "custom_dataset"
+
+# Training loss achieved
+final_loss = 0.0
+
+[adapter.inference]
+# Inference-specific settings when using this adapter
+# Scaling factor for adapter influence (0.0 - 2.0)
+scale = 1.0
+
+# Whether to merge adapter weights with base model
+merge_weights = false
+
+# Temperature adjustment when using adapter
+temperature_offset = 0.0
+
+# Custom prompt template for this adapter
+[adapter.prompt]
+# Override base model prompt if needed
+system_template = ""
+user_template = ""
+assistant_template = ""
+
+# Specific task instructions
+task_instruction = "You are a helpful assistant fine-tuned for specific tasks."
+
+[adapter.metadata]
+# Metadata about the adapter
+version = "1.0.0"
+created_date = "2024-01-01"
+author = "Your Name"
+description = "Custom LoRA adapter for specific use case"
+license = "apache-2.0"
+
+# Performance metrics
+[adapter.metrics]
+# Evaluation metrics
+eval_loss = 0.0
+eval_perplexity = 0.0
+eval_accuracy = 0.0
+
+# Task-specific metrics
+task_metrics = {
+    # Add your custom metrics here
+}
