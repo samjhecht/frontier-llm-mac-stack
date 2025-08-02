@@ -16,6 +16,10 @@ use crate::converters::{
     create_streaming_chunk,
 };
 use crate::error::{AppError, Result};
+use crate::metrics::{
+    ACTIVE_REQUESTS, GENERATE_DURATION_SECONDS, HTTP_REQUESTS_TOTAL, HTTP_REQUEST_DURATION_SECONDS,
+    STREAMING_CHUNKS_TOTAL,
+};
 use crate::models::mistral::{
     MistralChatRequest, MistralChatResponse, MistralMessage, MistralStreamChunk,
 };
@@ -70,6 +74,14 @@ pub async fn handle_generate(
 ) -> Result<Response> {
     info!("Handling generate request for model: {}", req.model);
 
+    ACTIVE_REQUESTS.inc();
+    let _timer = HTTP_REQUEST_DURATION_SECONDS
+        .with_label_values(&["generate"])
+        .start_timer();
+    let _generate_timer = GENERATE_DURATION_SECONDS
+        .with_label_values(&[&req.model])
+        .start_timer();
+
     let (temperature, top_p, max_tokens, random_seed) = extract_ollama_parameters(req.options);
 
     let mistral_req = MistralChatRequest {
@@ -85,11 +97,24 @@ pub async fn handle_generate(
         random_seed,
     };
 
-    if req.stream.unwrap_or(false) {
+    let result = if req.stream.unwrap_or(false) {
         handle_streaming_request(state, mistral_req, false).await
     } else {
         handle_sync_request(state, mistral_req, false).await
+    };
+
+    ACTIVE_REQUESTS.dec();
+
+    match &result {
+        Ok(_) => HTTP_REQUESTS_TOTAL
+            .with_label_values(&["generate", "success", "none"])
+            .inc(),
+        Err(e) => HTTP_REQUESTS_TOTAL
+            .with_label_values(&["generate", "error", e.error_type()])
+            .inc(),
     }
+
+    result
 }
 
 pub async fn handle_chat(
@@ -97,6 +122,14 @@ pub async fn handle_chat(
     Json(req): Json<OllamaChatRequest>,
 ) -> Result<Response> {
     info!("Handling chat request for model: {}", req.model);
+
+    ACTIVE_REQUESTS.inc();
+    let _timer = HTTP_REQUEST_DURATION_SECONDS
+        .with_label_values(&["chat"])
+        .start_timer();
+    let _generate_timer = GENERATE_DURATION_SECONDS
+        .with_label_values(&[&req.model])
+        .start_timer();
 
     let (temperature, top_p, max_tokens, random_seed) = extract_ollama_parameters(req.options);
 
@@ -110,11 +143,24 @@ pub async fn handle_chat(
         random_seed,
     };
 
-    if req.stream.unwrap_or(false) {
+    let result = if req.stream.unwrap_or(false) {
         handle_streaming_request(state, mistral_req, true).await
     } else {
         handle_sync_request(state, mistral_req, true).await
+    };
+
+    ACTIVE_REQUESTS.dec();
+
+    match &result {
+        Ok(_) => HTTP_REQUESTS_TOTAL
+            .with_label_values(&["chat", "success", "none"])
+            .inc(),
+        Err(e) => HTTP_REQUESTS_TOTAL
+            .with_label_values(&["chat", "error", e.error_type()])
+            .inc(),
     }
+
+    result
 }
 
 async fn handle_sync_request(
@@ -241,6 +287,13 @@ async fn handle_streaming_request(
                                         );
 
                                         let _ = tx.send(Ok(ollama_chunk.to_string())).await;
+                                        STREAMING_CHUNKS_TOTAL
+                                            .with_label_values(&[if is_chat {
+                                                "chat"
+                                            } else {
+                                                "generate"
+                                            }])
+                                            .inc();
                                     }
                                 }
                             }

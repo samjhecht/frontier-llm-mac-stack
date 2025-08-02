@@ -1,18 +1,17 @@
 use axum::{
+    http::{header, Method},
     routing::{get, post},
     Router,
 };
 use std::{net::SocketAddr, sync::Arc};
-use tower_http::{
-    cors::{Any, CorsLayer},
-    trace::TraceLayer,
-};
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::info;
 
 mod config;
 mod converters;
 mod error;
 mod handlers;
+mod metrics;
 mod models;
 
 use config::Config;
@@ -43,10 +42,18 @@ async fn main() {
         max_line_length: config.max_line_length,
     });
 
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    let mut cors = CorsLayer::new()
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
+
+    // Configure allowed origins
+    for origin in &config.cors_allowed_origins {
+        cors = cors.allow_origin(
+            origin
+                .parse::<axum::http::HeaderValue>()
+                .unwrap_or_else(|_| panic!("Invalid CORS origin: {origin}")),
+        );
+    }
 
     let app = Router::new()
         .route("/api/generate", post(handle_generate))
@@ -54,6 +61,8 @@ async fn main() {
         .route("/api/tags", get(handle_list_models))
         .route("/api/models", get(handle_list_models))
         .route("/api/version", get(handle_version))
+        .route("/api/metrics", get(handle_metrics))
+        .route("/metrics", get(handle_metrics))
         .route("/", get(handle_health))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
@@ -80,4 +89,15 @@ async fn handle_version() -> axum::Json<serde_json::Value> {
     axum::Json(serde_json::json!({
         "version": "0.1.0-mistral-proxy"
     }))
+}
+
+async fn handle_metrics() -> impl axum::response::IntoResponse {
+    use axum::http::StatusCode;
+
+    let metrics = metrics::export_metrics();
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "text/plain")],
+        metrics,
+    )
 }

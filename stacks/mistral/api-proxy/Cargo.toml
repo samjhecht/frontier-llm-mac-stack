@@ -3,6 +3,14 @@ name = "mistral-ollama-proxy"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "mistral-ollama-proxy"
+path = "src/main.rs"
+
+[lib]
+name = "mistral_ollama_proxy"
+path = "src/lib.rs"
+
 [dependencies]
 axum = { version = "0.7", features = ["macros", "ws"] }
 tokio = { version = "1", features = ["full"] }
@@ -20,3 +28,8 @@ bytes = "1.5"
 anyhow = "1.0"
 thiserror = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
+prometheus = { version = "0.13", features = ["process"] }
+lazy_static = "1.4"
+
+[dev-dependencies]
+axum-test = "14.0"
