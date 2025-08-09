@@ -3,6 +3,43 @@
 
 set -euo pipefail
 
+# Check prerequisites
+for cmd in curl jq; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "Error: $cmd is required but not installed" >&2
+        exit 1
+    fi
+done
+
+# Cleanup handler
+cleanup() {
+    local exit_code=$?
+    # Clean up any temporary files
+    rm -f /tmp/mistral-test-*
+    exit $exit_code
+}
+trap cleanup EXIT INT TERM
+
+# Validate model name
+validate_model() {
+    local model="$1"
+    local url="${2:-http://$MISTRAL_HOST:$MISTRAL_PORT}"
+    
+    # Check OpenAI-style endpoint
+    if curl -s "$url/v1/models" 2>/dev/null | jq -e ".data[] | select(.id == \"$model\")" > /dev/null 2>&1; then
+        return 0
+    fi
+    
+    # Check Ollama-style endpoint
+    if curl -s "$url/api/tags" 2>/dev/null | jq -e ".models[] | select(.name == \"$model\")" > /dev/null 2>&1; then
+        return 0
+    fi
+    
+    echo -e "${RED}[ERROR]${NC} Model '$model' not found. Available models:"
+    curl -s "$url/api/tags" 2>/dev/null | jq -r '.models[].name // empty' 2>/dev/null | sed 's/^/  - /'
+    return 1
+}
+
 # Colors for output
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -362,26 +399,38 @@ test_performance_benchmark() {
     print_test "Testing concurrent request handling"
     
     concurrent_test() {
-        curl -s -X POST "http://$MISTRAL_HOST:$MISTRAL_PORT/v1/chat/completions" \
+        local tmpfile=$(mktemp)
+        if curl -s -X POST "http://$MISTRAL_HOST:$MISTRAL_PORT/v1/chat/completions" \
             -H "Content-Type: application/json" \
             -d "{
                 \"model\": \"$TEST_MODEL\",
                 \"messages\": [{\"role\": \"user\", \"content\": \"Hello\"}],
                 \"max_tokens\": 10
-            }" > /dev/null 2>&1 && echo "success" || echo "fail"
+            }" > "$tmpfile" 2>&1; then
+            if grep -q "content" "$tmpfile"; then
+                rm -f "$tmpfile"
+                return 0
+            fi
+        fi
+        rm -f "$tmpfile"
+        return 1
     }
     
-    # Run 10 concurrent requests
-    results=""
+    # Run 10 concurrent requests and track PIDs
+    declare -a pids=()
     for i in {1..10}; do
         concurrent_test &
-        results="$results $!"
+        pids+=($!)
     done
     
+    # Wait for all requests and track individual results
     successes=0
-    for pid in $results; do
-        if wait $pid; then
+    failures=0
+    for pid in "${pids[@]}"; do
+        if wait "$pid"; then
             ((successes++))
+        else
+            ((failures++))
         fi
     done
     
@@ -463,6 +512,15 @@ run_all_tests() {
     echo "Starting Mistral.rs Integration Tests" | tee "$TEST_LOG"
     echo "====================================" | tee -a "$TEST_LOG"
     echo "Test log: $TEST_LOG" | tee -a "$TEST_LOG"
+    
+    # Validate model availability
+    print_test "Validating model availability"
+    if validate_model "$TEST_MODEL"; then
+        print_pass
+    else
+        print_fail "Model $TEST_MODEL not available"
+        exit 1
+    fi
     
     # Run all test suites
     test_api_health

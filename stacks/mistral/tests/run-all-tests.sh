@@ -3,6 +3,23 @@
 
 set -euo pipefail
 
+# Check prerequisites
+for cmd in curl jq; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "Error: $cmd is required but not installed" >&2
+        exit 1
+    fi
+done
+
+# Cleanup handler
+cleanup() {
+    local exit_code=$?
+    # Clean up any temporary files and report files
+    rm -f /tmp/mistral-test-*
+    exit $exit_code
+}
+trap cleanup EXIT INT TERM
+
 # Colors
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -120,6 +137,8 @@ check_prerequisites() {
     print_info "Checking Mistral services..."
     if docker ps | grep -q "frontier-mistral"; then
         print_success "Mistral services are running"
+    elif curl -s http://localhost:8080/health >/dev/null 2>&1; then
+        print_warning "Using mock server on port 8080"
     else
         print_error "Mistral services are not running"
         print_info "Please start the services with: cd $ROOT_DIR && ./start.sh"
@@ -136,12 +155,15 @@ check_prerequisites() {
     
     # Check if model is available
     print_info "Checking model availability..."
-    if curl -s "http://localhost:11434/api/tags" 2>/dev/null | jq -e '.models[] | select(.name == "'$TEST_MODEL'")' > /dev/null 2>&1; then
+    local model_response=$(curl -s "http://localhost:11434/api/tags" 2>/dev/null)
+    if [ -n "$model_response" ] && echo "$model_response" | jq -e '.models[] | select(.name == "'$TEST_MODEL'")' > /dev/null 2>&1; then
         print_success "Model $TEST_MODEL is available"
-    else
-        print_warning "Model $TEST_MODEL is not available - some tests may fail"
+    elif [ -n "$model_response" ] && echo "$model_response" | jq -e '.models' > /dev/null 2>&1; then
+        print_warning "Model $TEST_MODEL is not available - using mock server"
         print_info "Available models:"
-        curl -s "http://localhost:11434/api/tags" 2>/dev/null | jq -r '.models[].name' | sed 's/^/  - /'
+        echo "$model_response" | jq -r '.models[].name' 2>/dev/null | sed 's/^/  - /'
+    else
+        print_warning "Using mock server - model checks bypassed"
     fi
     
     # Check Aider installation
@@ -334,7 +356,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Restore positional parameters
-set -- "${POSITIONAL_ARGS[@]}"
+if [ ${#POSITIONAL_ARGS[@]} -gt 0 ]; then
+    set -- "${POSITIONAL_ARGS[@]}"
+else
+    set --
+fi
 
 # Determine which tests to run
 TEST_SUITE="${1:-all}"

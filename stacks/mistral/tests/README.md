@@ -153,8 +153,8 @@ The test suite is designed for CI/CD integration:
 # Quick smoke test (skip benchmarks)
 ./run-all-tests.sh -s
 
-# Generate JUnit-style report (coming soon)
-./run-all-tests.sh --junit-output results/junit.xml
+# Verbose output with detailed error reporting
+./run-all-tests.sh --verbose
 ```
 
 ## Troubleshooting

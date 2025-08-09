@@ -4,13 +4,13 @@
 #   Metal build: docker build --build-arg BUILD_MODE=metal --build-arg BUILD_FEATURES=metal --build-arg MISTRAL_RS_VERSION=v0.5.0 .
 #   Prebuilt: docker build --build-arg BUILD_MODE=prebuilt -f Dockerfile.prebuilt .
 
-ARG BUILD_MODE=cuda
+ARG BUILD_MODE=cpu
 ARG MISTRAL_RS_VERSION=v0.6.0
-ARG BUILD_FEATURES=cuda
-ARG RUNTIME_BASE=nvidia/cuda:12.2.0-runtime-ubuntu22.04
+ARG BUILD_FEATURES=
+ARG RUNTIME_BASE=ubuntu:22.04
 
 # Builder stage - only used for source builds
-FROM rust:1.84-slim as builder
+FROM rust:1.86-slim as builder
 ARG MISTRAL_RS_VERSION
 ARG BUILD_FEATURES
 
@@ -32,7 +32,11 @@ RUN git clone --depth 1 --branch ${MISTRAL_RS_VERSION} https://github.com/EricLB
 WORKDIR /build/mistral.rs
 
 # Build the mistralrs-server binary
-RUN cargo build --release --features ${BUILD_FEATURES}
+RUN if [ -n "${BUILD_FEATURES}" ]; then \
+        cargo build --release --features ${BUILD_FEATURES}; \
+    else \
+        cargo build --release; \
+    fi
 
 # Runtime stage
 FROM ${RUNTIME_BASE}

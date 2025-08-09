@@ -3,6 +3,25 @@
 
 set -euo pipefail
 
+# Check prerequisites
+for cmd in curl jq; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "Error: $cmd is required but not installed" >&2
+        exit 1
+    fi
+done
+
+# Cleanup handler
+cleanup() {
+    local exit_code=$?
+    # Clean up test directory
+    if [ -n "${TEST_DIR:-}" ] && [ -d "$TEST_DIR" ]; then
+        rm -rf "$TEST_DIR"
+    fi
+    exit $exit_code
+}
+trap cleanup EXIT INT TERM
+
 # Colors
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -294,7 +313,9 @@ EOF
         # Count docstrings
         docstring_count=$(grep -c '"""' undocumented.py || echo "0")
         
-        if [ "$docstring_count" -ge 6 ]; then  # At least 3 methods * 2 quotes each
+        # Expect at least 3 methods * 2 quotes each for docstrings
+        MIN_DOCSTRING_COUNT="${MIN_DOCSTRING_COUNT:-6}"
+        if [ "$docstring_count" -ge "$MIN_DOCSTRING_COUNT" ]; then
             print_pass
         else
             print_fail "Insufficient documentation added"

@@ -3,6 +3,23 @@
 
 set -euo pipefail
 
+# Check prerequisites
+for cmd in curl jq bc; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "Error: $cmd is required but not installed" >&2
+        exit 1
+    fi
+done
+
+# Cleanup handler
+cleanup() {
+    local exit_code=$?
+    # Clean up any temporary files
+    rm -f /tmp/benchmark-*
+    exit $exit_code
+}
+trap cleanup EXIT INT TERM
+
 # Colors
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -136,6 +153,9 @@ benchmark_latency() {
     
     echo "Service,PromptSize,MaxTokens,Iteration,Duration,TokenCount,TokensPerSecond" >> "$CSV_FILE"
     
+    # Buffer for batch writing
+    local csv_buffer=""
+    
     for prompt_size in "${PROMPT_SIZES[@]}"; do
         for max_tokens in "${MAX_TOKENS_LIST[@]}"; do
             print_info "Testing $prompt_size prompt with max_tokens=$max_tokens"
@@ -161,9 +181,16 @@ benchmark_latency() {
                         tps=$(echo "scale=2; $token_count / $duration" | bc)
                     fi
                     
-                    echo "$service_name,$prompt_size,$max_tokens,$i,$duration,$token_count,$tps" >> "$CSV_FILE"
+                    # Buffer the CSV line
+                    csv_buffer="${csv_buffer}${service_name},${prompt_size},${max_tokens},${i},${duration},${token_count},${tps}\n"
                 fi
             done
+            
+            # Write buffer to file after each test configuration
+            if [ -n "$csv_buffer" ]; then
+                echo -ne "$csv_buffer" >> "$CSV_FILE"
+                csv_buffer=""
+            fi
             
             echo ""  # New line after progress
             
@@ -198,34 +225,47 @@ benchmark_throughput() {
     local start_time=$(date +%s.%N)
     
     # Launch concurrent requests
-    local pids=""
+    declare -a pids=()
+    declare -a tmpfiles=()
+    
     for i in $(seq 1 $CONCURRENT_REQUESTS); do
+        local tmpfile=$(mktemp)
+        tmpfiles+=("$tmpfile")
         (
-            curl -s -X POST "$url/api/generate" \
+            if curl -s -X POST "$url/api/generate" \
                 -H "Content-Type: application/json" \
                 -d "{
                     \"model\": \"$TEST_MODEL\",
                     \"prompt\": \"$prompt\",
                     \"max_tokens\": 100,
                     \"stream\": false
-                }" > /dev/null 2>&1
+                }" > "$tmpfile" 2>&1; then
+                if grep -q "response" "$tmpfile"; then
+                    exit 0
+                fi
+            fi
+            exit 1
         ) &
-        pids="$pids $!"
+        pids+=($!)
     done
     
-    # Wait for all requests to complete
+    # Wait for all requests to complete and track results
     local completed=0
-    for pid in $pids; do
-        if wait $pid; then
+    local failed=0
+    for i in "${!pids[@]}"; do
+        if wait "${pids[$i]}"; then
             ((completed++))
+        else
+            ((failed++))
         fi
+        rm -f "${tmpfiles[$i]}"
     done
     
     local end_time=$(date +%s.%N)
     local total_duration=$(echo "$end_time - $start_time" | bc)
     local rps=$(echo "scale=2; $completed / $total_duration" | bc)
     
-    print_info "Completed $completed/$CONCURRENT_REQUESTS requests"
+    print_info "Completed $completed/$CONCURRENT_REQUESTS requests (failed: $failed)"
     print_info "Total time: ${total_duration}s"
     print_info "Throughput: $rps requests/second"
     
@@ -247,8 +287,8 @@ benchmark_streaming() {
     local total_ttft=0  # Time to first token
     local successful_runs=0
     
-    for i in $(seq 1 5); do
-        echo -ne "\r  Progress: $i/5"
+    for i in $(seq 1 $ITERATIONS); do
+        echo -ne "\r  Progress: $i/$ITERATIONS"
         
         local start_time=$(date +%s.%N)
         
@@ -312,7 +352,51 @@ generate_report() {
     if [ -n "$OLLAMA_URL" ]; then
         echo -e "\n${CYAN}Comparing Mistral.rs vs Ollama${NC}" | tee -a "$REPORT_FILE"
         
-        # TODO: Add comparative analysis from CSV data
+        # Comparative analysis from CSV data
+        echo -e "\n${CYAN}Performance Analysis:${NC}" | tee -a "$REPORT_FILE"
+        
+        # Calculate averages for each server
+        mistral_avg=$(awk -F',' '$2=="mistral" {sum+=$7; count++} END {if(count>0) printf "%.3f", sum/count; else print "0"}' "$CSV_FILE")
+        ollama_avg=$(awk -F',' '$2=="ollama" {sum+=$7; count++} END {if(count>0) printf "%.3f", sum/count; else print "0"}' "$CSV_FILE")
+        
+        # Calculate tokens/sec averages
+        mistral_tps=$(awk -F',' '$2=="mistral" {sum+=$8; count++} END {if(count>0) printf "%.2f", sum/count; else print "0"}' "$CSV_FILE")
+        ollama_tps=$(awk -F',' '$2=="ollama" {sum+=$8; count++} END {if(count>0) printf "%.2f", sum/count; else print "0"}' "$CSV_FILE")
+        
+        echo -e "\nAverage Response Time:" | tee -a "$REPORT_FILE"
+        echo -e "  Mistral.rs: ${GREEN}${mistral_avg}s${NC}" | tee -a "$REPORT_FILE"
+        echo -e "  Ollama:     ${GREEN}${ollama_avg}s${NC}" | tee -a "$REPORT_FILE"
+        
+        echo -e "\nAverage Tokens/Second:" | tee -a "$REPORT_FILE"
+        echo -e "  Mistral.rs: ${GREEN}${mistral_tps} tokens/s${NC}" | tee -a "$REPORT_FILE"
+        echo -e "  Ollama:     ${GREEN}${ollama_tps} tokens/s${NC}" | tee -a "$REPORT_FILE"
+        
+        # Calculate performance difference
+        if command -v bc >/dev/null 2>&1; then
+            if [ "$ollama_avg" != "0" ]; then
+                perf_diff=$(echo "scale=2; (($ollama_avg - $mistral_avg) / $ollama_avg) * 100" | bc)
+                if (( $(echo "$perf_diff > 0" | bc -l) )); then
+                    echo -e "\n${GREEN}Mistral.rs is ${perf_diff}% faster than Ollama${NC}" | tee -a "$REPORT_FILE"
+                elif (( $(echo "$perf_diff < 0" | bc -l) )); then
+                    perf_diff=$(echo "scale=2; -1 * $perf_diff" | bc)
+                    echo -e "\n${YELLOW}Ollama is ${perf_diff}% faster than Mistral.rs${NC}" | tee -a "$REPORT_FILE"
+                else
+                    echo -e "\n${CYAN}Both servers have similar performance${NC}" | tee -a "$REPORT_FILE"
+                fi
+            fi
+            
+            # Throughput comparison
+            if [ "$ollama_tps" != "0" ]; then
+                tps_diff=$(echo "scale=2; (($mistral_tps - $ollama_tps) / $ollama_tps) * 100" | bc)
+                if (( $(echo "$tps_diff > 0" | bc -l) )); then
+                    echo -e "${GREEN}Mistral.rs has ${tps_diff}% higher throughput${NC}" | tee -a "$REPORT_FILE"
+                elif (( $(echo "$tps_diff < 0" | bc -l) )); then
+                    tps_diff=$(echo "scale=2; -1 * $tps_diff" | bc)
+                    echo -e "${YELLOW}Ollama has ${tps_diff}% higher throughput${NC}" | tee -a "$REPORT_FILE"
+                fi
+            fi
+        fi
+        
         print_info "Full results saved to: $CSV_FILE"
         print_info "Report saved to: $REPORT_FILE"
     else

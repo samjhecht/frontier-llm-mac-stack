@@ -3,6 +3,23 @@
 
 set -euo pipefail
 
+# Check prerequisites
+for cmd in curl jq; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "Error: $cmd is required but not installed" >&2
+        exit 1
+    fi
+done
+
+# Cleanup handler
+cleanup() {
+    local exit_code=$?
+    # Clean up any temporary files
+    rm -f /tmp/mistral-monitoring-*
+    exit $exit_code
+}
+trap cleanup EXIT INT TERM
+
 # Colors
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -148,16 +165,21 @@ test_mistral_metrics() {
         return 1
     fi
     
-    # Define expected metrics
-    expected_metrics=(
-        "mistral_http_requests_total"
-        "mistral_http_request_duration_seconds"
-        "mistral_active_requests"
-        "mistral_streaming_chunks_total"
-        "mistral_model_loaded"
-        "mistral_inference_duration_seconds"
-        "mistral_tokens_generated_total"
-    )
+    # Define expected metrics (configurable via environment)
+    if [ -z "${EXPECTED_METRICS:-}" ]; then
+        expected_metrics=(
+            "mistral_http_requests_total"
+            "mistral_http_request_duration_seconds"
+            "mistral_active_requests"
+            "mistral_streaming_chunks_total"
+            "mistral_model_loaded"
+            "mistral_inference_duration_seconds"
+            "mistral_tokens_generated_total"
+        )
+    else
+        # Read metrics from environment variable (comma-separated)
+        IFS=',' read -ra expected_metrics <<< "$EXPECTED_METRICS"
+    fi
     
     # Check each metric
     for metric in "${expected_metrics[@]}"; do
@@ -324,7 +346,9 @@ test_grafana_dashboards() {
     
     # Check for Mistral dashboard
     print_test "Checking for Mistral dashboard"
-    dashboards=$(curl -s -u admin:changeme "http://localhost:$GRAFANA_PORT/api/search?type=dash-db" 2>/dev/null || echo "[]")
+    GRAFANA_USER=${GRAFANA_USER:-admin}
+    GRAFANA_PASSWORD=${GRAFANA_PASSWORD:-changeme}
+    dashboards=$(curl -s -u "$GRAFANA_USER:$GRAFANA_PASSWORD" "http://localhost:$GRAFANA_PORT/api/search?type=dash-db" 2>/dev/null || echo "[]")
     
     if echo "$dashboards" | jq -e '.[] | select(.title | contains("Mistral"))' > /dev/null 2>&1; then
         print_pass
@@ -336,7 +360,7 @@ test_grafana_dashboards() {
     
     # Check datasources
     print_test "Checking Prometheus datasource"
-    datasources=$(curl -s -u admin:changeme "http://localhost:$GRAFANA_PORT/api/datasources" 2>/dev/null || echo "[]")
+    datasources=$(curl -s -u "$GRAFANA_USER:$GRAFANA_PASSWORD" "http://localhost:$GRAFANA_PORT/api/datasources" 2>/dev/null || echo "[]")
     
     if echo "$datasources" | jq -e '.[] | select(.type == "prometheus")' > /dev/null 2>&1; then
         print_pass
