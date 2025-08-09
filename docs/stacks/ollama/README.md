@@ -36,6 +36,7 @@ The Ollama stack provides a mature, production-ready LLM inference solution usin
 - **Recommended**: Mac Studio with M2/M3 Ultra, 64GB+ RAM
 - **Minimum**: Any system with 16GB RAM
 - **Storage**: 50GB+ free space (more for large models)
+- **Architecture Support**: ARM64 (Apple Silicon), AMD64/x86_64 (Intel/AMD)
 
 ### Software Requirements
 - Docker Desktop (macOS/Windows) or Docker Engine (Linux)
@@ -157,15 +158,15 @@ Create custom models with Modelfiles:
 # Modelfile
 FROM llama3.1:70b
 
-# Set parameters
-PARAMETER temperature 0.7
-PARAMETER top_p 0.9
-PARAMETER repeat_penalty 1.1
+# Set model parameters for consistent behavior
+PARAMETER temperature 0.7      # Controls randomness (0-1)
+PARAMETER top_p 0.9            # Nucleus sampling threshold
+PARAMETER repeat_penalty 1.1   # Penalize repetition
 
-# Set system prompt
+# Define the assistant's role and expertise
 SYSTEM "You are a helpful coding assistant specialized in Python."
 
-# Set template
+# Define the conversation template format
 TEMPLATE """{{ .System }}
 User: {{ .Prompt }}
 Assistant: """
@@ -219,7 +220,9 @@ export OLLAMA_API_BASE="http://localhost:11434"
 aider --model ollama/qwen2.5-coder:32b-instruct-q8_0
 ```
 
-### Aider Settings (.aider.conf.yml)
+### Aider Settings
+
+Create `.aider.conf.yml` in your project root or home directory:
 ```yaml
 model: ollama/qwen2.5-coder:32b-instruct-q8_0
 edit-format: diff
@@ -231,7 +234,7 @@ dirty-commits: false
 
 ### Grafana Dashboards
 
-Access at `http://localhost:3000` (default: admin/changeme123!)
+Access at `http://localhost:3000` (credentials in .env file)
 
 Available dashboards:
 - **System Overview**: CPU, memory, disk, network metrics
@@ -318,6 +321,7 @@ Choose the right quantization for your needs:
    
    # Retry with verbose logging
    OLLAMA_DEBUG=1 ./pull-model.sh model-name
+   # Or set in .env file for persistent debug mode
    ```
 
 2. **Out of memory errors:**
@@ -356,15 +360,27 @@ Choose the right quantization for your needs:
 
 Enable detailed logging:
 ```bash
-# In .env
+# Method 1: Set in .env file (persistent)
 OLLAMA_DEBUG=1
 OLLAMA_LOG_LEVEL=debug
 
-# Restart services
+# Method 2: Set at runtime (temporary)
+OLLAMA_DEBUG=1 ./start.sh
+
+# Restart services after .env changes
 ./stop.sh && ./start.sh
 
-# View logs
-docker logs -f ollama
+# View logs with timestamps and follow mode
+docker logs -f --timestamps ollama
+
+# Common debug output patterns:
+# "loading model" - Model being loaded into memory
+# "inference" - Processing a request
+# "unloading" - Model being removed from memory
+# Error patterns to watch for:
+# "out of memory" - Reduce model size or parameters
+# "cuda error" - GPU driver or compatibility issue
+# "model not found" - Check model path and name
 ```
 
 ## Migration Guide

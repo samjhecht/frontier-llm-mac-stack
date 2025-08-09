@@ -12,15 +12,15 @@ This project provides everything needed to run a powerful, self-hosted LLM envir
 |---------|---------|------------|
 | **Model Format** | GGUF | GGUF, SafeTensors |
 | **API** | Ollama Native | OpenAI Compatible |
-| **Performance** | Excellent | Excellent |
+| **Performance** | Excellent* | Excellent* |
 | **Model Library** | Extensive (Ollama Hub) | Manual Download |
 | **Memory Usage** | Optimized | Highly Optimized |
 | **Quantization** | Built-in (Q4-Q8) | Flexible (Q2-Q8) |
-| **GPU Support** | Metal, CUDA, ROCm | CUDA only |
-| **CPU Fallback** | Yes | Limited |
+| **GPU Support** | Metal, CUDA, ROCm | CUDA (no Metal/ROCm) |
+| **CPU Fallback** | Yes | Limited (GPU strongly recommended) |
 | **Platform Support** | macOS, Linux, Windows | Linux (CUDA required) |
 | **Production Status** | Stable | Experimental |
-| **Model Pull** | Automatic (`ollama pull`) | Manual download |
+| **Model Pull** | Automatic (`ollama pull`) | Manual download (helper script available) |
 | **API Compatibility** | Full Ollama API | OpenAI subset |
 
 ### Available Stacks
@@ -43,7 +43,7 @@ This project provides everything needed to run a powerful, self-hosted LLM envir
 
 ### Software Requirements
 - macOS Ventura or later
-- Docker Desktop for Mac
+- Docker Desktop for Mac (Docker Compose v2.0+ required)
 - Git
 - SSH access between machines
 
@@ -93,7 +93,9 @@ vim .env
 ./pull-model.sh qwen2.5-coder:32b-instruct-q8_0
 
 # For Mistral.rs stack (manual download required):
-# See docs/stacks/mistral/README.md for model installation
+# Download models using the helper script:
+# cd stacks/mistral && ./scripts/pull-model.sh <model-name>
+# See docs/stacks/mistral/README.md for detailed model installation
 ```
 
 ### Step 5: Verify Installation
@@ -127,7 +129,7 @@ If deploying to a remote Mac Studio:
    # On your MacBook Pro
    git clone https://github.com/yourusername/frontier-llm-mac-stack.git
    cd frontier-llm-mac-stack
-   
+
    # On Mac Studio (via SSH)
    ssh username@mac-studio.local
    git clone https://github.com/yourusername/frontier-llm-mac-stack.git
@@ -203,8 +205,8 @@ vim .env  # Update stack-specific settings
 ```
 
 For detailed stack information, see:
-- [Ollama Stack Documentation](docs/stacks/ollama/README.md)
-- [Mistral.rs Stack Documentation](docs/stacks/mistral/README.md)
+- [Ollama Stack Documentation](./docs/stacks/ollama/README.md)
+- [Mistral.rs Stack Documentation](./docs/stacks/mistral/README.md)
 
 ## Manual Setup Options
 
@@ -238,28 +240,38 @@ cd ../..
 
 ## Architecture
 
+### Stack Architecture Overview
+
 ```mermaid
 graph TD
     A[User/Developer] --> B{Stack Selector}
     B --> C[Ollama Stack]
     B --> D[Mistral.rs Stack]
-    
+
     C --> E[Common Services]
     D --> E
-    
+
     E --> F[Grafana Monitoring]
     E --> G[Prometheus Metrics]
     E --> H[Nginx Proxy]
-    
+
     C --> I[Metal GPU Support]
     C --> J[CUDA Support]
     C --> K[CPU Fallback]
-    
+
     D --> L[CUDA Optimization]
-    
+
     H --> M[API Endpoints]
     M --> A
 ```
+
+**Text representation of architecture:**
+- User/Developer interacts with Stack Selector
+- Stack Selector routes to either Ollama or Mistral.rs stack  
+- Both stacks integrate with common services (Grafana, Prometheus, Nginx)
+- Ollama supports Metal, CUDA, ROCm, and CPU fallback
+- Mistral.rs optimized for CUDA
+- Nginx provides unified API endpoints
 
 ### Network Architecture
 
@@ -306,6 +318,7 @@ pip install aider-chat
 
 # Configure for remote Ollama
 export OLLAMA_API_BASE="http://mac-studio.local:11434"
+# Note: For production use, configure SSL/TLS with HTTPS
 
 # Run Aider
 aider --model ollama/qwen2.5-coder:32b-instruct-q8_0
@@ -336,7 +349,7 @@ Once your setup is working, upgrade to the full Qwen3-235B model:
    ```bash
    # Ensure you have ~500GB free space
    df -h /
-   
+
    # Check memory (need 192GB+ for optimal performance)
    sysctl hw.memsize | awk '{print $2/1024/1024/1024 " GB"}'
    ```
@@ -360,6 +373,8 @@ Once your setup is working, upgrade to the full Qwen3-235B model:
 
 ### Other Recommended Models
 
+*Performance claims are approximate and depend on hardware configuration, model size, and quantization level.
+
 - **DeepSeek-Coder:33b** - Excellent code understanding
 - **CodeLlama:70b** - Meta's largest code model
 - **Mixtral:8x7b** - Fast MoE architecture
@@ -380,6 +395,8 @@ Edit `.env` file to customize:
 - Model paths
 - Port mappings
 - Authentication settings
+
+For a comprehensive list of all environment variables, see [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md).
 
 ### Adding SSL
 
@@ -456,14 +473,14 @@ If you can't connect via SSH:
    ```bash
    # Find IP on Mac Studio
    ipconfig getifaddr en0
-   
+
    # Connect from MacBook
    ssh username@192.168.x.x
    ```
 
 ## Performance Optimization
 
-For detailed resource allocation guidance, see [docs/resource-allocation.md](docs/resource-allocation.md).
+See stack-specific documentation for detailed resource allocation guidance.
 
 Quick tips for best performance:
 
