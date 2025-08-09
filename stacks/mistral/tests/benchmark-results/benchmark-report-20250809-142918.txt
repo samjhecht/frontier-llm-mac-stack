@@ -1,0 +1,10 @@
+=== Performance Comparison Benchmark ===
+Timestamp: Sat Aug  9 14:29:18 PDT 2025
+Model: qwen2.5-coder:32b
+Iterations per test: 10
+
+
+[0;34m=== Service Availability Check ===[0m
+[0;32m[INFO][0m Mistral.rs is accessible at http://localhost:11434
+[1;33m[WARNING][0m Ollama is not accessible at http://localhost:11435 - will only benchmark Mistral
+[0;31m[ERROR][0m Model qwen2.5-coder:32b is not available
