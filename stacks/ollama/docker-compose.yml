@@ -17,16 +17,22 @@ services:
       - OLLAMA_NUM_PARALLEL=4
       - OLLAMA_MAX_LOADED_MODELS=2
       - OLLAMA_FLASH_ATTENTION=true
-    deploy:
-      resources:
-        limits:
-          memory: ${OLLAMA_MEMORY_LIMIT:-64G}
-        reservations:
-          memory: ${OLLAMA_MEMORY_RESERVATION:-32G}
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # Note: deploy.resources is only supported in Docker Swarm mode
+    # For standard docker-compose, resource limits should be set in Docker Desktop
+    # or via docker run flags. Uncomment below if using Docker Swarm:
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: ${OLLAMA_MEMORY_LIMIT:-64G}
+    #     reservations:
+    #       memory: ${OLLAMA_MEMORY_RESERVATION:-32G}
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    mem_limit: ${OLLAMA_MEMORY_LIMIT:-64g}
+    memswap_limit: ${OLLAMA_MEMORY_LIMIT:-64g}
+    mem_reservation: ${OLLAMA_MEMORY_RESERVATION:-32g}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
       interval: 30s

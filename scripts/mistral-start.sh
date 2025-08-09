@@ -25,17 +25,20 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 MISTRAL_DIR="$PROJECT_ROOT/stacks/mistral"
 
+# Source common functions
+source "$SCRIPT_DIR/common-functions.sh"
+
 # Configuration
 CONTAINER_NAME="frontier-mistral"
 NETWORK_NAME="frontier-llm-network"
 MONITORING_NETWORK="frontier-monitoring"
 API_PORT="${MISTRAL_API_PORT:-8080}"
 
-echo "Starting Mistral.rs inference server..."
+print_header "Starting Mistral.rs inference server"
 
 # Check if docker-compose is available
-if ! command -v docker-compose &> /dev/null; then
-    echo "Error: docker-compose is not installed or not in PATH"
+if ! command_exists docker-compose; then
+    print_error "docker-compose is not installed or not in PATH"
     exit 1
 fi
 

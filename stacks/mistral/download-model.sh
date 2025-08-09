@@ -151,6 +151,10 @@ download_model() {
     
     print_info "Downloading model: $filename"
     print_info "Destination: $filepath"
+    
+    # Warn about large file sizes
+    print_warning "Model files can be very large (5-50GB+). Ensure you have sufficient disk space."
+    print_info "The download will show progress. Press Ctrl+C to cancel if needed."
     echo ""
     
     # Download with progress bar
@@ -175,6 +179,18 @@ download_model() {
         local file_type=$(file -b "$filepath" 2>/dev/null || echo "unknown")
         if [[ ! "$filename" =~ \.(gguf|safetensors|bin)$ ]]; then
             print_warning "File may not be a valid model format (expected .gguf, .safetensors, or .bin)"
+        fi
+        
+        # Calculate and display SHA256 checksum for integrity verification
+        if command -v sha256sum >/dev/null 2>&1; then
+            local checksum=$(sha256sum "$filepath" | awk '{print $1}')
+            print_info "SHA256: $checksum"
+            # Save checksum to a file for future verification
+            echo "$checksum  $filename" > "${filepath}.sha256"
+        elif command -v shasum >/dev/null 2>&1; then
+            local checksum=$(shasum -a 256 "$filepath" | awk '{print $1}')
+            print_info "SHA256: $checksum"
+            echo "$checksum  $filename" > "${filepath}.sha256"
         fi
         
         print_success "Model downloaded successfully!"
