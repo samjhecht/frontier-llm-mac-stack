@@ -90,17 +90,22 @@ build_v5_command() {
         fi
     fi
     
-    # Build command based on model type
+    # Build command - global options come first, then command, then command-specific options
+    cmd_args+=(--port "$PORT")
+    cmd_args+=(--serve-ip "$SERVE_IP")
+    cmd_args+=(--max-seqs "$MAX_SEQS")
+    
+    # Now add the model type and its specific options
     if [ "$MODEL_TYPE" = "gguf" ] && [ -n "$MODEL_ID" ]; then
-        cmd_args=(gguf --model-id "$MODEL_ID")
+        cmd_args+=(gguf --model-id "$MODEL_ID")
     elif [ "$MODEL_TYPE" = "plain" ] && [ -n "$MODEL_ID" ]; then
-        cmd_args=(plain --model-id "$MODEL_ID")
+        cmd_args+=(plain --model-id "$MODEL_ID")
     elif [ "$MODEL_TYPE" = "lora" ] && [ -n "$MODEL_ID" ]; then
-        cmd_args=(lora --model-id "$MODEL_ID")
+        cmd_args+=(lora --model-id "$MODEL_ID")
     elif [ "$MODEL_TYPE" = "x-lora" ] && [ -n "$MODEL_ID" ]; then
-        cmd_args=(x-lora --model-id "$MODEL_ID")
+        cmd_args+=(x-lora --model-id "$MODEL_ID")
     elif [ "$MODEL_TYPE" = "toml" ] && [ -f "$MODEL_PATH/config.toml" ]; then
-        cmd_args=(toml "$MODEL_PATH/config.toml")
+        cmd_args+=(toml "$MODEL_PATH/config.toml")
     else
         echo "ERROR: No valid model configuration provided"
         echo "Please set MISTRAL_MODEL_TYPE and MISTRAL_MODEL_ID environment variables"
@@ -111,11 +116,6 @@ build_v5_command() {
         echo "Available model types: plain, gguf, lora, x-lora, toml"
         exit 1
     fi
-    
-    # Add common options
-    cmd_args+=(--port "$PORT")
-    cmd_args+=(--serve-ip "$SERVE_IP")
-    cmd_args+=(--max-seqs "$MAX_SEQS")
     
     echo "${cmd_args[@]}"
 }
