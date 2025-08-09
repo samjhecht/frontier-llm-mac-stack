@@ -81,7 +81,8 @@ cd "$PROJECT_ROOT"
 
 # Initialize Git repository
 git init
-git remote add origin <repository-url>
+# Add your repository remote if needed:
+# git remote add origin https://github.com/yourusername/yourrepo.git
 
 # Create stack directories
 mkdir -p stacks/{common,ollama,mistral}
@@ -534,12 +535,15 @@ services:
       - frontier-llm-network
       - frontier-monitoring
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: ${MISTRAL_MEMORY_LIMIT:-64G}
-        reservations:
-          memory: ${MISTRAL_MEMORY_RESERVATION:-32G}
+    # Note: deploy.resources is only supported in Docker Swarm mode
+    # For standard docker-compose, resource limits should be set in Docker Desktop
+    # or via docker run flags. Uncomment below if using Docker Swarm:
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: ${MISTRAL_MEMORY_LIMIT:-64G}
+    #     reservations:
+    #       memory: ${MISTRAL_MEMORY_RESERVATION:-32G}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s

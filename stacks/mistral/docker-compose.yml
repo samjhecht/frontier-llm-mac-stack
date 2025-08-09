@@ -60,12 +60,18 @@ services:
       - MISTRAL_METAL_COMMAND_QUEUE_SIZE=${MISTRAL_METAL_COMMAND_QUEUE_SIZE:-64}
     # Command is handled by docker-entrypoint.sh based on environment variables
     # To use config.toml, set MISTRAL_MODEL_TYPE=toml and mount config at /models/config.toml
-    deploy:
-      resources:
-        limits:
-          memory: ${MISTRAL_MEMORY_LIMIT:-64G}
-        reservations:
-          memory: ${MISTRAL_MEMORY_RESERVATION:-32G}
+    # Note: deploy.resources is only supported in Docker Swarm mode
+    # For standard docker-compose, resource limits should be set in Docker Desktop
+    # or via docker run flags. Uncomment below if using Docker Swarm:
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: ${MISTRAL_MEMORY_LIMIT:-64G}
+    #     reservations:
+    #       memory: ${MISTRAL_MEMORY_RESERVATION:-32G}
+    mem_limit: ${MISTRAL_MEMORY_LIMIT:-64g}
+    memswap_limit: ${MISTRAL_MEMORY_LIMIT:-64g}
+    mem_reservation: ${MISTRAL_MEMORY_RESERVATION:-32g}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${MISTRAL_API_PORT:-8080}/health"]
       interval: ${MISTRAL_HEALTH_INTERVAL:-30s}

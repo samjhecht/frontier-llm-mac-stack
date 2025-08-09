@@ -356,6 +356,7 @@ Check container status:
    - Currently requires NVIDIA GPU with CUDA 11.7+
    - No support for AMD GPUs (ROCm)
    - No support for Apple Silicon (Metal)
+     - **Note**: Metal acceleration cannot be used inside Docker containers on macOS due to Docker's virtualization layer. Docker containers do not have direct access to Metal APIs. For Metal acceleration with mistral.rs, you would need to run it natively on macOS, which is outside the scope of this Docker-based infrastructure.
    - CPU-only inference is extremely limited; GPU is strongly recommended
 
 4. **Platform Support:**
