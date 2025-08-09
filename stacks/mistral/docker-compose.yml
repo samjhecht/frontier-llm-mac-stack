@@ -1,14 +1,11 @@
 # Docker Compose configuration for Mistral.rs
-# Includes common monitoring services from ../common/monitoring/docker-compose.yml
-
-include:
-  - ../common/monitoring/docker-compose.yml
+# Common monitoring services are included via docker-compose-wrapper.sh
 
 services:
   # Mistral.rs Inference Server
   mistral:
     build:
-      context: ./docker
+      context: /Users/sam/code/sandbox/frontier-llm-mac-stack/stacks/mistral/docker
       dockerfile: Dockerfile
     image: frontier-mistral:latest
     container_name: frontier-mistral
@@ -16,7 +13,7 @@ services:
     ports:
       - "${MISTRAL_API_PORT:-8080}:8080"
     volumes:
-      - mistral-models:/models
+      - ./data/mistral-models:/models
       - ./config/mistral:/config
     environment:
       - RUST_LOG=${MISTRAL_LOG_LEVEL:-info}
@@ -87,7 +84,7 @@ services:
   # Ollama API Compatibility Proxy
   mistral-ollama-proxy:
     build:
-      context: ./api-proxy
+      context: /Users/sam/code/sandbox/frontier-llm-mac-stack/stacks/mistral/api-proxy
       dockerfile: Dockerfile
     image: frontier-mistral-ollama-proxy:latest
     container_name: frontier-mistral-ollama-proxy
@@ -113,14 +110,6 @@ services:
       options:
         max-size: 10m
         max-file: 3
-
-volumes:
-  mistral-models:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${MISTRAL_MODELS_PATH:-./data/mistral-models}
 
 networks:
   frontier-llm-network:

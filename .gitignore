@@ -58,6 +58,7 @@ yarn-error.log*
 /test-results/
 TEST_FAILURES.md
 TEST_SUMMARY.md
+stacks/mistral/tests/results/
 
 # OS files
 .DS_Store

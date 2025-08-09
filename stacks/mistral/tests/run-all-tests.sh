@@ -26,13 +26,52 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 SUMMARY_FILE="$RESULTS_DIR/test-summary-$TIMESTAMP.txt"
 
 # Test suite tracking
-declare -A TEST_RESULTS
+# Using regular arrays for compatibility with older bash versions
+TEST_RESULTS_KEYS=()
+TEST_RESULTS_VALUES=()
 TEST_SUITES=(
     "integration:Integration Tests:integration-test.sh"
     "aider:Aider Advanced Tests:test-aider-advanced.sh"
     "monitoring:Monitoring Advanced Tests:test-monitoring-advanced.sh"
     "benchmark:Performance Benchmark:benchmark-comparison.sh"
 )
+
+# Helper functions for associative array emulation
+set_test_result() {
+    local key=$1
+    local value=$2
+    local index=-1
+    
+    # Check if key exists
+    for i in "${!TEST_RESULTS_KEYS[@]}"; do
+        if [ "${TEST_RESULTS_KEYS[$i]}" = "$key" ]; then
+            index=$i
+            break
+        fi
+    done
+    
+    if [ $index -eq -1 ]; then
+        # Add new key-value pair
+        TEST_RESULTS_KEYS+=("$key")
+        TEST_RESULTS_VALUES+=("$value")
+    else
+        # Update existing value
+        TEST_RESULTS_VALUES[$index]="$value"
+    fi
+}
+
+get_test_result() {
+    local key=$1
+    
+    for i in "${!TEST_RESULTS_KEYS[@]}"; do
+        if [ "${TEST_RESULTS_KEYS[$i]}" = "$key" ]; then
+            echo "${TEST_RESULTS_VALUES[$i]}"
+            return
+        fi
+    done
+    
+    echo "NOT_RUN"
+}
 
 # Utility functions
 print_header() {
@@ -132,14 +171,14 @@ run_test_suite() {
     # Skip benchmark if requested
     if [ "$suite_id" = "benchmark" ] && [ "$SKIP_BENCHMARK" = "true" ]; then
         print_warning "Skipping benchmark tests (SKIP_BENCHMARK=true)"
-        TEST_RESULTS[$suite_id]="SKIPPED"
+        set_test_result "$suite_id" "SKIPPED"
         return
     fi
     
     # Check if script exists
     if [ ! -f "$script_path" ]; then
         print_error "Test script not found: $script_path"
-        TEST_RESULTS[$suite_id]="NOT_FOUND"
+        set_test_result "$suite_id" "NOT_FOUND"
         return
     fi
     
@@ -153,16 +192,16 @@ run_test_suite() {
     if [ "$VERBOSE" = "true" ]; then
         # Show output in real-time
         if bash "$script_path" 2>&1 | tee "$output_file"; then
-            TEST_RESULTS[$suite_id]="PASSED"
+            set_test_result "$suite_id" "PASSED"
             print_success "$suite_name completed successfully"
         else
-            TEST_RESULTS[$suite_id]="FAILED"
+            set_test_result "$suite_id" "FAILED"
             print_failure "$suite_name failed"
         fi
     else
         # Run quietly, only show summary
         if bash "$script_path" > "$output_file" 2>&1; then
-            TEST_RESULTS[$suite_id]="PASSED"
+            set_test_result "$suite_id" "PASSED"
             print_success "$suite_name completed successfully"
             
             # Extract summary from output if available
@@ -171,7 +210,7 @@ run_test_suite() {
                 sed -n '/Test Summary/,/^$/p' "$output_file" | head -10
             fi
         else
-            TEST_RESULTS[$suite_id]="FAILED"
+            set_test_result "$suite_id" "FAILED"
             print_failure "$suite_name failed"
             
             # Show last few lines of error
@@ -196,7 +235,7 @@ generate_report() {
     
     for suite_info in "${TEST_SUITES[@]}"; do
         IFS=':' read -r suite_id suite_name script_name <<< "$suite_info"
-        local result=${TEST_RESULTS[$suite_id]:-"NOT_RUN"}
+        local result=$(get_test_result "$suite_id")
         
         case $result in
             PASSED)
